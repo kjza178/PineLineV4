@@ -283,6 +283,11 @@ def _chatgpt_chat(
                         headers.pop("Authorization", None)
                         key = ""
                         continue
+                    # 413/400/422 = payload quá lớn hoặc request không hợp lệ — retry cùng body vô ích
+                    if r.status_code in (400, 413, 422):
+                        raise LLMUnavailable(
+                            f"Aurora/ChatGPT {r.status_code} (no-retry): {r.text[:300]}"
+                        )
                     if r.status_code in (429, 500, 502, 503, 504):
                         raise requests.HTTPError(f"{r.status_code} {r.text[:200]}")
                     r.raise_for_status()
@@ -293,7 +298,13 @@ def _chatgpt_chat(
                         return content
                     payload.pop("response_format", None)
                     time.sleep(0.4)
+                except LLMUnavailable:
+                    raise
                 except Exception as e:  # noqa: BLE001
+                    # HTTPError/Response với status client-error → không retry cùng payload
+                    sc = getattr(getattr(e, "response", None), "status_code", None)
+                    if sc in (400, 413, 422):
+                        raise LLMUnavailable(f"Aurora/ChatGPT {sc} (no-retry): {e}") from e
                     last_err = e
                     wait = min(2 ** attempt, 6)
                     print(f"[llm] chatgpt lỗi {base} {chosen} ({attempt + 1}): {e} — {wait}s", flush=True)

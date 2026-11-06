@@ -8,6 +8,7 @@ Bug sửa sau 2026-09-26 (chưa có file riêng) được ghi trong `docs/CHANGE
 
 | Date | File | Triệu chứng |
 |------|------|-------------|
+| 2026-11-06 | [pronoun-qa-413-slim.md](./2026-11-06-pronoun-qa-413-slim.md) | Pronoun-QA GPT vá đỏ Aurora 413 (full plan block) |
 | 2026-11-06 | [hongguo2-review.md](./2026-11-06-hongguo2-review.md) | Hongguo2 CTA submit nhầm + selectedIds lẫn detail / hint |
 | 2026-11-06 | [hg-new-seasons.md](./2026-11-06-hg-new-seasons.md) | `/hongguo` thiếu board Mùa mới (Gợi ý / Sắp ra / Update all) |
 | 2026-11-06 | [merge-no-dup-output.md](./2026-11-06-merge-no-dup-output.md) | Merge split tạo output + output_full nhân đôi dung lượng |

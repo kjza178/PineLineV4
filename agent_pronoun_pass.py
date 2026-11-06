@@ -122,7 +122,7 @@ def _fix_batch(chunk: list[dict], plan_block: str, model: str | None) -> dict[in
 
 def run_pronoun_pass(work_dir: str | Path, model: str | None = None) -> dict:
     from translate import (
-        _plan_block,
+        _plan_block_for_qa,
         ensure_hard_terms,
         apply_pronoun_postpass,
     )
@@ -147,7 +147,7 @@ def run_pronoun_pass(work_dir: str | Path, model: str | None = None) -> dict:
     issues = find_pronoun_issues(rows, plan)
     rmodel = model or pass_llm_model("pronoun")
     pos = {r["i"]: k for k, r in enumerate(rows) if isinstance(r, dict) and "i" in r}
-    plan_block = _plan_block(plan)
+    plan_block = _plan_block_for_qa(plan)
     m = Manifest(work_dir)
     fixed, sample = 0, []
     for k in range(0, len(issues), BATCH):

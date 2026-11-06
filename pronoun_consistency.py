@@ -799,9 +799,10 @@ def run_post_translate_consistency(
     if fix_with_gpt and jumps:
         try:
             from agent_pronoun_pass import _fix_batch
-            from translate import _plan_block, ensure_hard_terms
+            from translate import _plan_block_for_qa, ensure_hard_terms
             plan2 = ensure_hard_terms(plan)
-            block = _plan_block(plan2) + "\n" + lock_banner(plan2)
+            # lock_banner already inside _plan_block_for_qa — do not append twice
+            block = _plan_block_for_qa(plan2)
             pos = {r["i"]: k for k, r in enumerate(rows) if isinstance(r, dict) and "i" in r}
             for k in range(0, len(jumps), 20):
                 chunk = jumps[k : k + 20]

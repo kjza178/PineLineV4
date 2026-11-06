@@ -697,6 +697,80 @@ def _plan_block(p: dict) -> str:
     return "\n".join(lines)
 
 
+def _plan_block_for_qa(p: dict) -> str:
+    """Plan block gọn cho pronoun-QA / GPT vá đỏ — chỉ genre+style+pronouns.
+
+    Bỏ characters + terms (analyze đã upload file / không cần dump lại) để tránh
+    Aurora 413 khi nhét full `_plan_block` (~97KB) vào `_chatgpt_chat`.
+    """
+    if not isinstance(p, dict):
+        return ""
+
+    def _lst(key):
+        v = p.get(key)
+        return v if isinstance(v, list) else []
+
+    lines = []
+    if p.get("content_type") or p.get("genre") or p.get("tone"):
+        lines.append(
+            f"LOẠI: {p.get('content_type','')} | THỂ LOẠI: {p.get('genre','')} | "
+            f"VĂN PHONG: {p.get('tone','')}"
+        )
+    lock = p.get("style_lock") if isinstance(p.get("style_lock"), dict) else None
+    if lock and lock.get("mode") and lock.get("mode") != "unknown":
+        lines.append(
+            f"STYLE LOCK: mode={lock.get('mode')} | "
+            f"policy={lock.get('pronoun_policy') or ''}"
+        )
+        emo = (lock.get("emotional_style") or "").strip()
+        if emo:
+            lines.append(f"  GIỌNG CẢM XÚC (bám sát khi viết thoại): {emo}")
+        forbid = lock.get("forbid") or []
+        prefer = lock.get("prefer") or []
+        if forbid:
+            if _is_mixed_genre(p):
+                key_forb = [str(x) for x in forbid if isinstance(x, str) and any(
+                    k in str(x).lower() for k in (
+                        "tại hạ", "bổn tọa", "trẫm", "bệ hạ", "nhạo", "ta/ngươi", "phiên âm",
+                    )
+                )][:12]
+                lines.append("  CẤM: " + ", ".join(key_forb or [str(x) for x in forbid[:8]]))
+            else:
+                lines.append("  CẤM: " + ", ".join(str(x) for x in forbid[:24]))
+        soft_pref = [str(x) for x in prefer if isinstance(x, str) and len(str(x)) > 12][:8]
+        short_pref = [str(x) for x in prefer if isinstance(x, str) and len(str(x)) <= 12][:20]
+        if soft_pref:
+            lines.append("  ƯU TIÊN VĂN: " + "; ".join(soft_pref))
+        if short_pref:
+            lines.append("  ƯU TIÊN địa chỉ: " + ", ".join(short_pref))
+        bank = lock.get("address_bank") if isinstance(lock.get("address_bank"), dict) else None
+        if bank and _is_ancient_fantasy_genre(p):
+            for bk in ("self_humble", "self_noble", "call_female", "sect_order", "court"):
+                vals = bank.get(bk) or []
+                if vals:
+                    lines.append(f"  bank.{bk}: " + ", ".join(str(x) for x in vals[:10]))
+    if _lst("pronouns"):
+        lines.append("XƯNG HÔ (BẮT BUỘC theo đúng cặp who→to):")
+        for pr in _lst("pronouns"):
+            if isinstance(pr, dict):
+                lines.append(
+                    f"  - {pr.get('who')} nói với {pr.get('to')}: "
+                    f"tự xưng \"{pr.get('self')}\", gọi là \"{pr.get('call')}\""
+                )
+            elif isinstance(pr, str) and pr.strip():
+                lines.append(f"  - {pr.strip()}")
+    if p.get("pronoun_notes"):
+        lines.append(f"Ghi chú xưng hô: {p['pronoun_notes']}")
+    try:
+        from pronoun_consistency import lock_banner
+        lb = lock_banner(p)
+        if lb:
+            lines.append(lb.rstrip())
+    except Exception:
+        pass
+    return "\n".join(lines)
+
+
 def _resolve_scene_context(plan: dict | None, rows: list[dict]) -> str:
     """Xác định phân cảnh hiện tại của lô câu thoại (Scene-based context injection)."""
     if not isinstance(plan, dict) or not rows:
