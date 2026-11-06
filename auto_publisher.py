@@ -691,6 +691,16 @@ def _drain_publish_queue_async() -> None:
         _drain_thread.start()
 
 
+def _is_yt_upload_limit_error(err: Any) -> bool:
+    """True nếu YouTube báo hết hạn mức upload ngày (uploadLimitExceeded)."""
+    s = str(err or "").lower()
+    return (
+        "uploadlimitexceeded" in s
+        or "exceeded the number of videos they may upload" in s
+        or ("upload" in s and "limit" in s and "exceed" in s)
+    )
+
+
 def _drain_publish_queue_loop() -> None:
     """Vòng lặp lấy từng job từ hàng đợi ra xuất bản tuần tự cho đến khi hết."""
     while not _stop_event.is_set():
@@ -704,14 +714,33 @@ def _drain_publish_queue_loop() -> None:
             _dequeue_job_record("")
             continue
         try:
-            publish_job(
+            res = publish_job(
                 jid,
                 privacy=item.get("privacy"),
                 schedule_hours=item.get("schedule_hours"),
                 force=bool(item.get("force", False)),
             )
+            if isinstance(res, dict) and res.get("stop_queue"):
+                print(
+                    f"[auto-publish] DỪNG hàng đợi upload — YouTube uploadLimitExceeded "
+                    f"(job {jid}). Các job còn lại giữ trong queue, không upload tiếp.",
+                    flush=True,
+                )
+                break
         except Exception as e:
             print(f"[auto-publish] Lỗi khi xử lý hàng đợi cho job {jid}: {e}", flush=True)
+            if _is_yt_upload_limit_error(e):
+                update_auto_state(
+                    last_error=f"Dừng upload: YouTube uploadLimitExceeded ({jid}): {e}",
+                    current_stage="idle",
+                    current_job_id=None,
+                    progress_percent=0,
+                )
+                print(
+                    f"[auto-publish] DỪNG hàng đợi — uploadLimitExceeded. Giữ job trong queue.",
+                    flush=True,
+                )
+                break
             _dequeue_job_record(jid)
             _sync_queue_state_badge()
         time.sleep(1.0)
@@ -752,31 +781,45 @@ def publish_job(
     global_lp: Path | None = None
     lock_fd: int | None = None
     lock_path: Path | None = None
+    result: dict[str, Any] = {"ok": False}
 
     try:
         # 1. Xếp hàng tuần tự trong cùng tiến trình & liên tiến trình (chờ job trước upload xong)
         with _publish_serial_lock:
             global_fd, global_lp = acquire_global_publish_lock(job_id)
             if global_fd is None:
-                return {"ok": False, "error": f"Quá thời gian chờ khoá upload toàn cục cho job {job_id}"}
+                result = {"ok": False, "error": f"Quá thời gian chờ khoá upload toàn cục cho job {job_id}"}
+                return result
 
             # 2. Chiếm lock riêng của job_id
             lock_fd, lock_path, owner_pid = acquire_job_lock(job_id)
             if lock_fd is None:
                 print(f"[auto-publish] Job {job_id} đang được upload bởi tiến trình PID {owner_pid}, bỏ qua.", flush=True)
-                return {"ok": False, "skipped": True, "reason": f"job currently being published by PID {owner_pid}"}
+                result = {"ok": False, "skipped": True, "reason": f"job currently being published by PID {owner_pid}"}
+                return result
 
-            return _publish_job_internal(job_id, privacy=privacy, schedule_hours=schedule_hours, force=force)
+            result = _publish_job_internal(job_id, privacy=privacy, schedule_hours=schedule_hours, force=force)
+            return result
     finally:
         release_job_lock(lock_fd, lock_path)
         release_global_publish_lock(global_fd, global_lp)
-        _dequeue_job_record(job_id)
-        with _lock:
-            _active_jobs.discard(job_id)
-        _sync_queue_state_badge()
-        # Nếu vẫn còn job trong hàng đợi thì kích hoạt xử lý tiếp
-        if _read_publish_queue() and not _stop_event.is_set():
-            _drain_publish_queue_async()
+        stop_q = bool(result.get("stop_queue") or result.get("upload_limit_exceeded"))
+        if stop_q:
+            print(
+                f"[auto-publish] Không dequeue / không drain tiếp — uploadLimitExceeded (job {job_id}).",
+                flush=True,
+            )
+            _sync_queue_state_badge()
+        else:
+            _dequeue_job_record(job_id)
+            with _lock:
+                _active_jobs.discard(job_id)
+            _sync_queue_state_badge()
+            if _read_publish_queue() and not _stop_event.is_set():
+                _drain_publish_queue_async()
+        if stop_q:
+            with _lock:
+                _active_jobs.discard(job_id)
 
 
 def _publish_job_internal(
@@ -1037,24 +1080,43 @@ def _publish_job_internal(
         err_msg = f"Lỗi ngoại lệ khi xuất bản {job_id}: {e_fatal}"
         print(f"[auto-publish] {err_msg}", flush=True)
         _revert_job_to_done(job_id, err_msg)
+        limit_hit = _is_yt_upload_limit_error(e_fatal)
+        if limit_hit:
+            err_msg = (
+                f"DỪNG upload — YouTube uploadLimitExceeded khi xuất bản {job_id}: {e_fatal}"
+            )
+            print(f"[auto-publish] {err_msg}", flush=True)
         update_auto_state(
             last_error=err_msg,
             current_stage="idle",
             current_job_id=None,
             progress_percent=0,
         )
-        return {"ok": False, "error": err_msg}
+        return {
+            "ok": False,
+            "error": err_msg,
+            "upload_limit_exceeded": limit_hit,
+            "stop_queue": limit_hit,
+        }
 
     if not up_res.get("ok"):
         err_msg = str(up_res.get("error") or "Upload thất bại")
         _revert_job_to_done(job_id, err_msg)
+        limit_hit = _is_yt_upload_limit_error(err_msg)
+        if limit_hit:
+            err_msg = f"DỪNG upload — YouTube uploadLimitExceeded ({job_id}): {err_msg}"
+            print(f"[auto-publish] {err_msg}", flush=True)
         update_auto_state(
             last_error=err_msg,
             current_stage="idle",
             current_job_id=None,
             progress_percent=0,
         )
-        return up_res
+        out = dict(up_res)
+        out["error"] = err_msg
+        out["upload_limit_exceeded"] = limit_hit
+        out["stop_queue"] = limit_hit
+        return out
 
     yt_url = up_res["yt_url"]
     video_id = up_res["video_id"]

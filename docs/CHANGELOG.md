@@ -2,6 +2,25 @@
 
 Mới nhất trên cùng. Mỗi mục: file/hàm — thay đổi — cần restart gì. Chi tiết bug: docs/fixes/. Nhật ký phiên: docs/worklog/.
 
+## 2026-11-06
+
+- **Hongguo2 review pass** (~08:30). Sync `hongguo2.html` từ V2 (CTA enqueue-only, `#results` scope, catalog-hint/cta-status, busy guards, UX). Fix `docs/fixes/2026-11-06-hongguo2-review.md`. **Hard refresh `/hongguo2`** (không restart).
+
+- **Hongguo2 redesign** (~08:20). Backup `Z:\PinelineV2_codebak\2026-11-06_0818_hongguo2\`. Thêm `hongguo2.html` (IA 2 cột Discover|Ops). Route `GET /hongguo2` → `ui_hongguo2` trong `routes_ui.py` + re-export `server.py`. Link «Thử Hongguo2» trên `hongguo.html`. Sync V2/V5. **Restart :8804** để nạp route; hard refresh `/hongguo2`.
+
+- **Hongguo New seasons board** (~08:00). Backup `Z:\PinelineV2_codebak\2026-11-06_hg-new-seasons\`. Bridge `submit(scores=)` + `library_update`/`seasons_decline`; routes `/api/hg/library/update` + `/seasons/decline`; `HgSubmitIn.scores`; UI tab 🆕 Mùa mới trên `hongguo.html`. Sync V2/V5. Fix `docs/fixes/2026-11-06-hg-new-seasons.md`. **Hard refresh `/hongguo`**; **restart :8804** nếu cần nạp bridge/routes.
+
+- **Merge no-dup output** (~03:00). Backup `Z:\PinelineV2_codebak\2026-11-06_merge-no-dup-output\`. `merge_job_parts`: ghi 1 lần `output.mp4`; `output_full` chỉ hardlink (`_hardlink_alias`, không `copy2`); cleanup `_split_parts`. Sync V2/V5. Fix `docs/fixes/2026-11-06-merge-no-dup-output.md`. **Restart :8804** để nạp merge mới (job đã merge không cần remux).
+
+## 2026-11-05
+
+- **Split voice queue_opts** (~21:40). `_resolve_voice`/speed/tts_engine đọc `queue_opts` trước list[0]; `split_job_to_subjobs` seed `stages.tts` + `tts_config`. Backup `Z:\PinelineV2_codebak\2026-11-05_split-voice-queue-opts\`. Fix `docs/fixes/2026-11-05-split-voice-queue-opts.md`. **Restart :8804** để nạp (chưa restart).
+
+- **Auto-split conflict guards** (~21:20). Backup `Z:\PinelineV2_codebak\2026-11-05_autosplit-conflict-guards\`. `server.py` `_auto_gpu` skip mux-done; promote cùng ASR → không invalidate; `maybe_auto_split_job` skip `merged` / chỉ enqueue part thiếu. Sync V2/V5. Fix `docs/fixes/2026-11-05-autosplit-conflict-guards.md`. **Restart :8804** để nạp.
+
+- **UI3 stale `?job=` clear** (~01:15). Clear selection khi job không còn trong list. Sync V2/V5. **Không restart** (hard refresh).
+- **UI3 404/stages null-safe** (~01:09). Backup `Z:\PinelineV2_codebak\2026-11-05_ui3-404-stages\`. Sync từ V5: `renderDetail` guard + `refresh` `detRes.ok` / clear `?job=`. Fix `docs/fixes/2026-11-05-ui3-404-stages.md`. **Không restart** (hard refresh HTML).
+
 ## 2026-11-04
 
 - **Queue sort/move** (16:57). Backup `Z:\PinelineV2_codebak\2026-11-04_queue-sort-move\`. UI gọi `/api/queue/jobs/sort|move`; season ưu tiên «Phần N» trên title; `job_sort_key` dùng `group_id`/series normalize. Sync V2/V4/V5 (`job_queue.py` + `index3.html`). Fix `docs/fixes/2026-11-04-queue-sort-move.md`. **Restart :8801** (+ hard refresh UI).

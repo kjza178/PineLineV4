@@ -74,6 +74,65 @@ _STAGE_BUSY: set[tuple[str, str]] = set()
 _STAGE_BUSY_LOCK = threading.Lock()
 
 
+def _mux_output_ok(work_dir: Path, min_bytes: int = 1_000_000) -> bool:
+    p = Path(work_dir) / "output.mp4"
+    try:
+        return p.is_file() and p.stat().st_size > min_bytes
+    except OSError:
+        return False
+
+
+def _part_pipeline_complete(work_dir: Path) -> bool:
+    """Part/job đã mux + output, không stale → không chạy lại GPU pipeline."""
+    work_dir = Path(work_dir)
+    if not _mux_output_ok(work_dir):
+        return False
+    try:
+        m = Manifest(work_dir)
+    except Exception:  # noqa: BLE001
+        return False
+    if not m.is_done("mux"):
+        return False
+    stages = m.data.get("stages") or {}
+    tr = stages.get("translate") or {}
+    tts = stages.get("tts") or {}
+    if tr.get("stale") or tts.get("stale"):
+        return False
+    if tr.get("status") == "pending" and tr.get("stale_asr_source"):
+        return False
+    return True
+
+
+def _ensure_parent_mux_merged_done(work_dir: Path, n_parts: int | None = None) -> None:
+    """Heal UI parent: Full đã merge mà mux còn running@80%."""
+    work_dir = Path(work_dir)
+    try:
+        m = Manifest(work_dir)
+    except Exception:  # noqa: BLE001
+        return
+    si = m.data.get("split_info") or {}
+    n = n_parts or len(si.get("sub_job_ids") or []) or 0
+    st = m.data.setdefault("stages", {}).setdefault("mux", {})
+    st["status"] = "done"
+    st["progress"] = 100
+    st["cur_text"] = (
+        f"Hoàn tất bản Full ({n} parts ghép lại) ✓" if n else "Hoàn tất bản Full ✓"
+    )
+    st["from_split_merge"] = True
+    st["is_full_merged"] = True
+    st["updated_at"] = time.time()
+    m.data["stages"]["mux"] = st
+    if si.get("status") != "merged":
+        si = dict(si)
+        si["status"] = "merged"
+        m.data["split_info"] = si
+    m.save()
+    try:
+        _job_cache.pop(str(work_dir), None)
+    except NameError:
+        pass
+
+
 def _job_any_busy(job_id: str) -> str | None:
     """Trả tên stage đang claim, hoặc None."""
     with _STAGE_BUSY_LOCK:
@@ -608,13 +667,56 @@ def _stop_job(job_id: str) -> None:
     try:
         m = Manifest(wd)
         ch = False
-        for st in m.data.get("stages", {}).values():
-            if isinstance(st, dict) and st.get("status") == "running":
+        si = m.data.get("split_info") or {}
+        out_full = wd / "output_full.mp4"
+        full_ok = False
+        try:
+            full_ok = out_full.is_file() and out_full.stat().st_size > 1_000_000
+        except OSError:
+            full_ok = False
+        already_merged = si.get("status") == "merged" and (_mux_output_ok(wd) or full_ok)
+        for name, st in list((m.data.get("stages") or {}).items()):
+            if not isinstance(st, dict) or st.get("status") != "running":
+                continue
+            if name == "mux" and already_merged:
+                n = len(si.get("sub_job_ids") or []) or 0
+                st["status"] = "done"
+                st["progress"] = 100
+                st["cur_text"] = (
+                    f"Hoàn tất bản Full ({n} parts ghép lại) ✓" if n else "Hoàn tất bản Full ✓"
+                )
+                st["from_split_merge"] = True
+                st["is_full_merged"] = True
+                st["updated_at"] = time.time()
+            else:
                 st["status"] = "pending"
                 st.pop("updated_at", None)
-                ch = True
+            ch = True
         if ch:
             m.save()
+            try:
+                _job_cache.pop(str(wd), None)
+            except NameError:
+                pass
+        parent_id = (m.data.get("request") or {}).get("parent_job_id")
+        if parent_id:
+            try:
+                pwd = WORK_ROOT / str(parent_id)
+                pm = Manifest(pwd)
+                psi = pm.data.get("split_info") or {}
+                pmux = (pm.data.get("stages") or {}).get("mux") or {}
+                pout = pwd / "output.mp4"
+                pfull = pwd / "output_full.mp4"
+                pok = psi.get("status") == "merged" and (
+                    (pout.is_file() and pout.stat().st_size > 1_000_000)
+                    or (pfull.is_file() and pfull.stat().st_size > 1_000_000)
+                )
+                if pok and pmux.get("status") == "running":
+                    _ensure_parent_mux_merged_done(
+                        pwd, len(psi.get("sub_job_ids") or []) or None
+                    )
+            except Exception:  # noqa: BLE001
+                pass
     except Exception:  # noqa: BLE001
         pass
 
@@ -909,6 +1011,7 @@ class LocalBatchIn(BaseModel):
 class HgSubmitIn(BaseModel):
     series_ids: list[str]
     base: str | None = None
+    scores: dict[str, str] | None = None
 
 
 class HgMergeIn(BaseModel):
@@ -1297,6 +1400,12 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
 
     try:
         if stopped():
+            return
+        if _part_pipeline_complete(wd):
+            print(
+                f"[auto] {job_id}: skip GPU pipeline — mux/output đã xong, không stale.",
+                flush=True,
+            )
             return
         free_gpu_vram("trước ASR — nhường GPU")
         # Ưu tiên engine từ opts hàng chờ — không lấy “leftover” lệch giữa các job
@@ -2851,8 +2960,19 @@ def _patch_tts_fields(work_dir: Path, **fields) -> None:
         pass
 
 
+def _job_cfg_opts(work_dir: Path) -> dict:
+    """Gộp opts + queue_opts (queue_opts thắng) — resolve voice/speed/engine."""
+    try:
+        m = Manifest(work_dir)
+        opts = dict(m.data.get("opts") or {})
+        qo = dict(m.data.get("queue_opts") or {})
+        return {**opts, **qo}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _resolve_voice(work_dir: Path, voice: str | None) -> str:
-    """Giọng: truyền vào -> manifest -> tts_config.json -> danh sách giọng."""
+    """Giọng: arg → stages.tts → tts_config → queue_opts/opts → list[0]."""
     if voice:
         _save_tts_voice(work_dir, voice)
         return voice
@@ -2868,6 +2988,10 @@ def _resolve_voice(work_dir: Path, voice: str | None) -> str:
                 return v
         except Exception:  # noqa: BLE001
             pass
+    v = (_job_cfg_opts(work_dir).get("voice") or "").strip()
+    if v:
+        _save_tts_voice(work_dir, v)
+        return v
     avail = list_clone_voices()
     return avail[0] if avail else ""
 
@@ -2889,6 +3013,10 @@ def _resolve_queue_voice(work_dir: Path, voice: str | None) -> str:
                 return saved
         except Exception:  # noqa: BLE001
             pass
+    v = (_job_cfg_opts(work_dir).get("voice") or "").strip()
+    if v:
+        _save_tts_voice(work_dir, v)
+        return v
     return ""
 
 
@@ -2907,6 +3035,13 @@ def _resolve_speed(work_dir: Path, speed: float | None) -> float:
                 return float(sp)
         except Exception:  # noqa: BLE001
             pass
+    sp = _job_cfg_opts(work_dir).get("speed")
+    try:
+        if sp is not None and float(sp) > 0:
+            _save_tts_speed(work_dir, float(sp))
+            return float(sp)
+    except (TypeError, ValueError):
+        pass
     return 1.0
 
 
@@ -3057,6 +3192,11 @@ def _resolve_tts_engine(work_dir: Path, engine: str | None) -> str:
                 return saved
         except Exception:  # noqa: BLE001
             pass
+    qo = _job_cfg_opts(work_dir)
+    saved = qo.get("tts_engine") or qo.get("engine")
+    if saved in TTS_ENGINES:
+        _save_tts_engine(work_dir, saved)
+        return saved
     return TTS_ENGINE_DEFAULT
 
 
@@ -4135,9 +4275,25 @@ def _promote_asr_source(work_dir: Path, source: str) -> dict:
     if eng_hint:
         fields["asr_engine"] = eng_hint
         fields["engine"] = eng_hint
+    try:
+        m_prev = Manifest(work_dir)
+        prev_asr = (m_prev.data.get("stages") or {}).get("asr") or {}
+        prev_src = prev_asr.get("asr_source")
+        prev_n = int(prev_asr.get("n_segments") or 0)
+    except Exception:  # noqa: BLE001
+        prev_src, prev_n = None, 0
+    same_source = (prev_src == src_name and prev_n == len(norm) and prev_n > 0)
     _patch_asr_fields(work_dir, **fields)
-    # Đổi nguồn ASR → bản dịch cũ lệch ZH/i — đánh dấu phải dịch lại
-    stale = _invalidate_translate_for_asr(work_dir, src_name, len(norm))
+    if same_source:
+        print(
+            f"[asr-select] {work_dir.name}: cùng nguồn {src_name} n={len(norm)} — "
+            f"không invalidate translate/TTS",
+            flush=True,
+        )
+        stale = False
+    else:
+        # Đổi nguồn ASR → bản dịch cũ lệch ZH/i — đánh dấu phải dịch lại
+        stale = _invalidate_translate_for_asr(work_dir, src_name, len(norm))
     return {"ok": True, "source": src_name, "n_segments": len(norm),
             "engine": eng_hint, "model": model_hint or None,
             "translate_stale": stale}
@@ -5755,6 +5911,7 @@ from routes_ui import (  # noqa: E402,F401
     index,
     ui3,
     ui_hongguo,
+    ui_hongguo2,
 )
 from routes_hg import (  # noqa: E402,F401
     HgRankEpsIn,

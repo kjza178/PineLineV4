@@ -147,6 +147,52 @@
   .panel-pane.on{display:block}
   .queue-wrap{flex:1;min-height:0;overflow:auto;padding:12px 14px;background:var(--bg)}
   .queue-wrap[hidden]{display:none}
+
+  .seasons-wrap{flex:1;min-height:0;overflow:auto;padding:12px 14px;background:var(--bg)}
+  .seasons-wrap[hidden]{display:none}
+  .libseasons{margin-top:4px;padding:12px 12px 14px 16px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel);display:flex;flex-direction:column;gap:10px}
+  .libseasons[hidden]{display:none}
+  .lsn-head{display:flex;align-items:center;gap:10px;min-width:0}
+  .lsn-title{flex:none;font-weight:800;font-size:14px;line-height:1.2;color:var(--text)}
+  .lsn-sub{min-width:0;font:600 12px/1.3 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lsn-head .x{margin-left:auto;background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px}
+  .lsn-head .x:hover{color:var(--text);background:var(--raise)}
+  .lsn-row{display:flex;align-items:flex-start;gap:6px 12px}
+  .lsn-k{flex:none;width:104px;padding-top:9px;font:700 10.5px/1 var(--mono);letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted)}
+  .lsn-items{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}
+  .lsn-grp{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%}
+  .lsn-gt{font-weight:700;font-size:12.5px;line-height:1.3;color:var(--text);max-width:18em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lsn-pill{display:inline-flex;align-items:center;gap:7px;max-width:100%;min-width:0;padding:4px 4px 4px 12px;
+    border-radius:999px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line);
+    font-weight:700;font-size:12px;line-height:1.2;color:var(--text2);white-space:nowrap}
+  .lsn-pill.plain{padding:6px 12px}
+  .lsn-pill .lsn-t{min-width:0;max-width:17em;overflow:hidden;text-overflow:ellipsis}
+  .lsn-pill .lsn-m{flex:none;font:600 11px/1 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+  .lsn-pill.dl .lsn-m{color:var(--accent)}
+  .lsn-pill.ok .lsn-m{color:var(--ok)}
+  .lsn-pill.soon{background:transparent;box-shadow:none;border:1px dashed var(--line2);padding:5px 11px;color:var(--muted)}
+  .lsn-add{flex:none;border:0;outline:none;cursor:pointer;font-weight:800;font-size:11.5px;line-height:1;padding:6px 11px;
+    border-radius:999px;color:#231a08;background:var(--accent)}
+  .lsn-add:hover{filter:brightness(1.05)}
+  .lsn-add:disabled{background:var(--raise);color:var(--muted);cursor:not-allowed;filter:none;border:1px solid var(--line2)}
+  .lsn-done{flex:none;font-weight:800;font-size:11.5px;line-height:1;color:var(--ok);padding:6px 8px 6px 2px;white-space:nowrap}
+  .lsn-more{border:0;background:transparent;cursor:pointer;font-weight:700;font-size:12px;color:var(--accent);
+    padding:7px 10px;border-radius:999px}
+  .lsn-more:hover{background:var(--raise)}
+  .lsn-big{display:flex;flex-direction:column;gap:10px;padding:12px 12px 12px 16px;
+    border-radius:10px;background:var(--accent-dim);box-shadow:inset 0 0 0 1px rgba(233,169,60,.32)}
+  .lsn-bhead{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px}
+  .lsn-big .lsn-bt{flex:1 1 300px;min-width:0;font-weight:600;font-size:13px;line-height:1.45;color:var(--text2);overflow-wrap:anywhere}
+  .lsn-big .lsn-bt b{color:var(--text);font-weight:800}
+  .lsn-bact{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-left:auto}
+  .lsn-big .lsn-pill{background:var(--panel)}
+  .lsn-pill.rel{padding-left:5px}
+  .lsn-tag{flex:none;font-weight:800;font-size:10px;line-height:1;letter-spacing:.03em;padding:4px 8px;border-radius:999px;
+    color:var(--accent);background:var(--accent-dim)}
+  @media (max-width:760px){.lsn-row{flex-direction:column}.lsn-k{width:auto;padding-top:2px}}
   .q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
   .q-card{display:flex;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);align-items:center;position:relative;transition:border-color .15s}
   .q-card:hover{border-color:var(--accent)}
@@ -230,6 +276,7 @@
     <span class="pill" id="conn">…</span>
     <span class="pill" id="outdir">output: —</span>
     <div class="spacer"></div>
+    <a class="btn" href="/hongguo2" style="border-color:var(--accent);color:var(--accent)">Thử Hongguo2</a>
     <a class="btn pri" href="/" style="text-decoration:none;font-weight:600;padding:5px 12px;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8">⬅ Quay lại Studio</a>
     <a class="btn" href="/ui3">UI3</a>
     <button class="btn" onclick="refreshAll()">↻ Refresh</button>
@@ -241,6 +288,7 @@
           <button type="button" class="tab" id="tab-search" onclick="switchLeftTab('search')">🔍 Tìm</button>
           <button type="button" class="tab on" id="tab-rank" onclick="switchLeftTab('rank')">🏆 Bảng hot</button>
           <button type="button" class="tab" id="tab-queue" onclick="switchLeftTab('queue')">📥 Hàng đợi tải<span class="cnt" id="tab-queue-n"></span></button>
+          <button type="button" class="tab" id="tab-seasons" onclick="switchLeftTab('seasons')">🆕 Mùa mới<span class="cnt" id="tab-seasons-n"></span></button>
           <button type="button" class="tab" id="tab-merge" onclick="switchLeftTab('merge')">🎞 Hàng đợi gộp<span class="cnt" id="tab-merge-n"></span></button>
         </div>
         <div class="panel-pane" id="pane-search">
@@ -296,6 +344,12 @@
           <span class="grow"></span>
           <span class="muted hint-inline" id="queue-pane-hint">0 series trong hàng đợi</span>
         </div>
+        <div class="panel-pane" id="pane-seasons">
+          <button class="btn pri" type="button" onclick="lsnUpdateAll()">↻ Update all</button>
+          <button class="btn" type="button" onclick="lsnRefresh()">Làm mới board</button>
+          <span class="grow"></span>
+          <span class="muted hint-inline" id="seasons-hint">Đọc seasons từ Hongguo /dl/status (sau Update all)</span>
+        </div>
         <div class="panel-pane" id="pane-merge">
           <button class="btn pri" onclick="mergeSelected()" title="Gộp các series đang tick trong thư viện (bên phải)">🎞 Gộp đã chọn</button>
           <button class="btn" onclick="mergeAllLibrary()" title="Xếp hàng mọi series trong thư viện chưa gộp xong">Tất cả chưa gộp</button>
@@ -319,6 +373,10 @@
           <span style="font-size:12px;color:var(--muted)">Hãy tick chọn các ô vuông series ở tab <b>🔍 Tìm</b> hoặc <b>🏆 Bảng hot (Leaderboard / Catalog)</b> để gom hàng loạt vào đây rồi tải tất cả cùng lúc.</span>
         </div>
         <div class="q-grid" id="queue-grid"></div>
+      </div>
+      <div class="seasons-wrap scroll" id="seasons-wrap" hidden>
+        <div class="libseasons" id="libSeasons" role="region" aria-label="New seasons"></div>
+        <div class="muted" id="seasons-empty" style="padding:24px">Chưa có dữ liệu mùa mới. Bấm <b>Update all</b> để Hongguo quét thư viện (cần Downloader đang chạy).</div>
       </div>
       <!-- Floating Queue Quick Bar -->
       <div id="floating-q-bar" class="floating-q-bar">
@@ -493,18 +551,21 @@ function bindResCheckboxes(box){
 }
 
 function switchLeftTab(name){
-  leftTab=(name==='rank'||name==='merge'||name==='queue')?name:'search';
-  for(const t of ['search','rank','queue','merge']){
+  leftTab=(name==='rank'||name==='merge'||name==='queue'||name==='seasons')?name:'search';
+  for(const t of ['search','rank','queue','seasons','merge']){
     const tb = document.getElementById('tab-'+t);
     if(tb) tb.classList.toggle('on', leftTab===t);
     const pn = document.getElementById('pane-'+t);
     if(pn) pn.classList.toggle('on', leftTab===t);
   }
-  document.getElementById('results').hidden=(leftTab==='merge'||leftTab==='queue');
+  document.getElementById('results').hidden=(leftTab==='merge'||leftTab==='queue'||leftTab==='seasons');
   document.getElementById('merge-wrap').hidden=(leftTab!=='merge');
   document.getElementById('queue-wrap').hidden=(leftTab!=='queue');
+  const sw=document.getElementById('seasons-wrap');
+  if(sw) sw.hidden=(leftTab!=='seasons');
   if(leftTab==='merge') refreshMerge();
   if(leftTab==='queue') renderQueueList();
+  if(leftTab==='seasons') lsnRefresh();
   if(leftTab==='rank'){
     if(rankBoard==='catalog'){ if(!catalogLoaded) loadCatalog(exPage||1); }
     else if(!rankLoaded) loadRank();
@@ -1534,6 +1595,245 @@ function renderLog(){
   if(atBottom) box.scrollTop=box.scrollHeight;
 }
 
+
+/* ---------- New seasons board (Hongguo /dl/status.seasons) ---------- */
+let _lsn=null, _lsnRun=null, _lsnHide=false, _lsnMore=false, _lsnAdded={}, _lsnDeclined={}, _lsnRows={}, _lsnBusy=false;
+const LSN_SUG_SHOW=12;
+const LSN_ID=/^[0-9]{15,20}$/;
+const num=v=>{ const n=Number(v); return Number.isFinite(n)?n:0; };
+function lsnHint(msg){
+  const el=document.getElementById('seasons-hint');
+  if(el) el.textContent=msg||'';
+}
+function lsnTake(st){
+  if(!st) return;
+  // Pineline luôn poll /api/hg/status — nhận seasons kể cả khi mode !== library
+  if(st.seasons && typeof st.seasons==="object"){
+    if(st.started!==_lsnRun){ _lsnRun=st.started; _lsnHide=false; _lsnMore=false; _lsnAdded={}; _lsnDeclined={}; _lsnRows={}; }
+    _lsn=st.seasons;
+  } else if(st.mode==="library" && st.started!==_lsnRun){
+    _lsnRun=st.started; _lsn=null; _lsnHide=false; _lsnMore=false; _lsnAdded={}; _lsnDeclined={}; _lsnRows={};
+  }
+  (st.series||[]).forEach(r=>{
+    const sid=String((r&& (r.sid||r.series_id))||'');
+    if(r && LSN_ID.test(sid)) _lsnRows[sid]=Object.assign({}, r, {sid});
+  });
+}
+function lsnItems(v){ return Array.isArray(v) ? v.filter(x=>x && typeof x==="object" && LSN_ID.test(String(x.sid))) : []; }
+function lsnList(k){ return lsnItems(_lsn && _lsn[k]); }
+function lsnN(n, word){ n=num(n); return n.toLocaleString("en-US")+" "+word+(n===1 ? "" : "s"); }
+function lsnEps(n){ n=num(n); return n.toLocaleString("en-US")+(n===1 ? " ep" : " eps"); }
+function lsnName(x){ const s=num(x.season); return (x.short===true && s>0) ? "S"+s : String(x.title||x.sid); }
+function lsnMeta(x, note){ return lsnEps(x.eps)+(x.score ? " · ★"+x.score : "")+(note ? " · "+note : ""); }
+function lsnBigAll(){
+  const b=_lsn && _lsn.big;
+  return (b && Array.isArray(b.albums)) ? [].concat(...b.albums.map(g=>lsnItems(g && g.items))) : lsnItems(b && b.items);
+}
+function lsnBigAlbums(){
+  const b=_lsn && _lsn.big, out=[];
+  ((b && Array.isArray(b.albums)) ? b.albums : []).forEach(g=>{
+    if(!g || typeof g!=="object") return;
+    const items=lsnItems(g.items).filter(x=>!_lsnDeclined[x.sid]);
+    if(items.length) out.push({album:String(g.album||""), base:String(g.base||""), items, kept:g.why==="offered",
+                               why:String(g.why||""), gb:num(g.gb)});
+  });
+  return out;
+}
+function lsnGroups(items, pill){
+  const gs=[], at=new Map();
+  items.forEach(x=>{ const b=String(x.base||""); if(!at.has(b)){ at.set(b, gs.length); gs.push({b, h:[]}); } gs[at.get(b)].h.push(pill(x)); });
+  return gs.map(g=>'<span class="lsn-grp">'+(g.b ? '<span class="lsn-gt" title="'+esc(g.b)+'">'+esc(g.b)+'</span>' : '')+g.h.join("")+'</span>').join("");
+}
+function lsnBusy(){
+  const st=window.__hgLastStatus||{};
+  return (st.running || _lsnBusy) ? ' disabled title="Chờ job hiện tại xong"' : '';
+}
+function lsnSugPill(x, meta, tag){
+  const add=_lsnAdded[x.sid] ? '<span class="lsn-done">✓ Đã thêm</span>'
+    : '<button class="lsn-add" data-lsn="add" data-sid="'+esc(x.sid)+'"'+lsnBusy()+' aria-label="+ Thêm '+esc(x.title)+'">+ Thêm</button>';
+  return '<span class="lsn-pill'+(tag ? ' rel' : '')+'">'+(tag ? '<span class="lsn-tag">'+esc(tag)+'</span>' : '')
+       + '<span class="lsn-t" title="'+esc(x.title)+'">'+esc(tag ? String(x.title||x.sid) : lsnName(x))+'</span>'
+       + '<span class="lsn-m">'+esc(meta)+'</span>'+add+'</span>';
+}
+function lsnPlain(x, meta, cls){
+  return '<span class="lsn-pill plain'+(cls?' '+cls:'')+'"><span class="lsn-t" title="'+esc(x.title)+'">'+esc(lsnName(x))+'</span>'
+       + (meta ? '<span class="lsn-m">'+esc(meta)+'</span>' : '')+'</span>';
+}
+function lsnAutoPill(x, rows){
+  const r=rows[String(x.sid)];
+  if(!r) return lsnPlain(x, lsnEps(x.eps), "");
+  const t=num(r.total), d=num(r.done), st=r.state||r.status||"";
+  if(st==="done" || (t>0 && d>=t)) return lsnPlain(x, "✓ "+lsnEps(t||d), "ok");
+  if(st==="cancelled") return lsnPlain(x, "dừng · "+d+"/"+t, "");
+  return lsnPlain(x, st==="queued" ? "chờ · "+lsnEps(t) : d+"/"+lsnEps(t), "dl");
+}
+function lsnBadgeCount(){
+  if(!_lsn || _lsnHide) return 0;
+  return lsnList("auto").length + lsnList("soon").length
+    + lsnList("older").length + lsnList("removed").length + lsnList("held").length
+    + lsnList("declined").length + lsnList("failed").length + lsnList("related").length
+    + lsnList("stopped").length + lsnBigAlbums().reduce((a,g)=>a+g.items.length,0);
+}
+function lsnUpdateBadge(){
+  const el=document.getElementById('tab-seasons-n');
+  if(!el) return;
+  const n=lsnBadgeCount();
+  el.textContent=n?String(n):'';
+}
+function lsnRender(){
+  const el=document.getElementById('libSeasons');
+  const empty=document.getElementById('seasons-empty');
+  if(!el) return;
+  const auto=lsnList("auto"), locked=lsnList("locked"), soon=lsnList("soon"), bigs=lsnBigAlbums();
+  const stoppedAll=lsnList("stopped");
+  const stopped=stoppedAll.filter(x=>!_lsnAdded[x.sid]), addedNow=stoppedAll.filter(x=>_lsnAdded[x.sid]);
+  const related=lsnList("related"), seen=new Set(), sug=[];
+  [[lsnList("older"),"mùa cũ"], [lsnList("removed"),"đã gỡ trước"], [lsnList("held"),"mùa mới"],
+   [lsnList("declined"),"đã bỏ qua"], [lsnBigAll().filter(x=>_lsnDeclined[x.sid]),"đã bỏ qua"], [lsnList("failed"),"không chạy được"],
+   [related,""]].forEach(([xs,note])=>xs.forEach(x=>{ const k=String(x.sid); if(!seen.has(k)){ seen.add(k); sug.push([x,note]); } }));
+  const has=_lsn && !_lsnHide && (auto.length||stoppedAll.length||locked.length||soon.length||bigs.length||sug.length);
+  if(empty) empty.hidden=!!has;
+  if(!has){ el.hidden=true; el.innerHTML=''; lsnUpdateBadge(); return; }
+  const rows=_lsnRows;
+  const st=window.__hgLastStatus||{};
+  const live=!!(st.running && (st.mode==="library" || lsnList("auto").length));
+  const rel=new Set(related);
+  const nBig=bigs.reduce((a,g)=>a+g.items.length,0), waiting=bigs.reduce((a,g)=>a+g.items.filter(x=>!_lsnAdded[x.sid]).length,0);
+  const nAuto=auto.length+addedNow.length;
+  const say=[nAuto ? nAuto+(live ? " đang tải" : " đã thêm") : "",
+             stopped.length ? stopped.length+" chưa bắt đầu" : "",
+             waiting ? waiting+" chờ OK" : (nBig ? nBig+" đã bắt đầu" : ""),
+             locked.length ? locked.length+" cần license" : "",
+             sug.length ? sug.length+" gợi ý" : "", soon.length ? soon.length+" sắp ra" : ""].filter(Boolean).join(" · ");
+  let h='<div class="lsn-head"><span class="lsn-title">🆕 Mùa mới</span><span class="lsn-sub">'+esc(say)+'</span>'
+       +'<button class="x" data-lsn="close" title="Ẩn" aria-label="Ẩn mùa mới">✕</button></div>';
+  bigs.forEach(g=>{
+    const rest=g.items.filter(x=>!_lsnAdded[x.sid]), eps=rest.reduce((a,x)=>a+num(x.eps),0), all=g.items.reduce((a,x)=>a+num(x.eps),0);
+    const alb=LSN_ID.test(g.album) ? g.album : "";
+    const why=g.kept ? ': vẫn chờ OK của bạn.'
+      : g.why==="partial" ? ': một số mùa không kiểm tra được, nên không tự tải.'
+      : g.why==="size" ? ': khoảng '+g.gb.toLocaleString("en-US",{maximumFractionDigits:1})+' GB — quá lớn để tự tải.'
+      : ': quá nhiều để tự tải.';
+    h+='<div class="lsn-big"><div class="lsn-bhead"><div class="lsn-bt"><b>'+esc(g.base||String(g.items[0].title||""))+'</b> · '
+      +lsnN(g.items.length,"mùa mới")+' · '+lsnN(all,"tập")+esc(why)+'</div>'
+      +(!rest.length ? '<span class="lsn-done">✓ Đã bắt đầu</span>' : !alb ? '' :
+        '<div class="lsn-bact"><button class="btn" data-lsn="decline" data-alb="'+alb+'">Không tải</button>'
+        +'<button class="btn pri" data-lsn="big" data-alb="'+alb+'"'+lsnBusy()+'>'
+        +(rest.length<g.items.length ? 'Tải phần còn lại' : 'Tải tất cả')+' ('+lsnN(eps,"tập")+')</button></div>')
+      +'</div><div class="lsn-items">'+g.items.map(x=>lsnSugPill(x, lsnMeta(x,""))).join("")+'</div></div>';
+  });
+  if(nAuto) h+='<div class="lsn-row"><span class="lsn-k">'+(live ? "Đang tải" : "Đã thêm")+'</span><div class="lsn-items">'
+      +lsnGroups(auto.concat(addedNow), x=>addedNow.includes(x) ? lsnPlain(x, "✓ Đã thêm · "+lsnEps(x.eps), "") : lsnAutoPill(x, rows))+'</div></div>';
+  if(stopped.length) h+='<div class="lsn-row"><span class="lsn-k">Chưa chạy</span><div class="lsn-items">'
+      +lsnGroups(stopped, x=>lsnSugPill(x, lsnEps(x.eps)+" · chạy khi Update all tiếp"))+'</div></div>';
+  if(locked.length) h+='<div class="lsn-row"><span class="lsn-k">Cần license</span><div class="lsn-items">'
+      +lsnGroups(locked, x=>lsnPlain(x, lsnEps(x.eps), ""))+'</div></div>';
+  if(sug.length){
+    const show=_lsnMore ? sug : sug.slice(0, LSN_SUG_SHOW), note=new Map(sug);
+    h+='<div class="lsn-row"><span class="lsn-k">Gợi ý</span><div class="lsn-items">'
+      +lsnGroups(show.map(p=>p[0]), x=>rel.has(x) ? lsnSugPill(x, lsnMeta(x,""), "Cùng chuyện") : lsnSugPill(x, lsnMeta(x, note.get(x))))
+      +(sug.length>LSN_SUG_SHOW ? '<button class="lsn-more" data-lsn="more">'+(_lsnMore ? "Thu gọn" : "+"+(sug.length-LSN_SUG_SHOW)+" more")+'</button>' : '')
+      +'</div></div>';
+  }
+  if(soon.length) h+='<div class="lsn-row"><span class="lsn-k">Sắp ra</span><div class="lsn-items">'+lsnGroups(soon, x=>lsnPlain(x, "", "soon"))+'</div></div>';
+  el.hidden=false;
+  el.innerHTML=h;
+  lsnUpdateBadge();
+}
+function lsnScores(ids){
+  const m={}, want=new Set(ids.map(String));
+  ["auto","stopped","locked","older","removed","held","declined","failed","related","soon"].map(lsnList).concat([lsnBigAll()])
+    .forEach(xs=>xs.forEach(x=>{ const s=String(x.score||""); if(want.has(String(x.sid)) && /^[0-9]{1,2}(\.[0-9]{1,2})?$/.test(s)) m[String(x.sid)]=s; }));
+  return m;
+}
+async function lsnSubmit(ids, btn){
+  const st=window.__hgLastStatus||{};
+  if(st.running || _lsnBusy){ lsnHint('Chờ job hiện tại xong rồi mới Thêm'); return; }
+  if(btn) btn.disabled=true;
+  try{
+    const d=await jpost('/api/hg/submit',{series_ids:ids, scores:lsnScores(ids)});
+    const held=new Set((Array.isArray(d.blocked)?d.blocked:[]).map(String));
+    ids.forEach(id=>{ if(!held.has(String(id))) _lsnAdded[String(id)]=1; });
+    lsnHint(ids.length>1 ? ('Đang tải '+ids.length+' mùa mới') : 'Đã thêm — đang tải');
+    await refreshStatus();
+  }catch(e){
+    lsnHint(e.message||String(e));
+    if(btn) btn.disabled=false;
+  }
+  lsnRender();
+}
+async function lsnDecline(alb, btn){
+  const g=lsnBigAlbums().find(x=>x.album===alb);
+  const ids=g ? g.items.filter(x=>!_lsnAdded[x.sid]).map(x=>String(x.sid)) : [];
+  if(!ids.length) return;
+  if(btn) btn.disabled=true;
+  try{
+    await jpost('/api/hg/library/seasons/decline',{series_ids:ids});
+    ids.forEach(id=>{ _lsnDeclined[id]=1; });
+    lsnHint(ids.length===1 ? 'Không tải: giữ trong Gợi ý' : 'Không tải: giữ trong Gợi ý ('+ids.length+')');
+  }catch(e){
+    lsnHint(e.message||String(e));
+    if(btn) btn.disabled=false;
+  }
+  lsnRender();
+}
+async function lsnRefresh(){
+  try{
+    const d=await jget('/api/hg/status');
+    window.__hgLastStatus=d;
+    lsnTake(d); lsnRender();
+    const ss=d.seasons||{};
+    lsnHint(ss.state ? ('seasons.state='+ss.state+(d.mode?(' · mode '+d.mode):'')) : 'Chưa có seasons — bấm Update all');
+  }catch(e){ lsnHint(e.message||String(e)); }
+}
+async function lsnUpdateAll(){
+  if(_lsnBusy) return;
+  const st=window.__hgLastStatus||{};
+  if(st.running){ lsnHint('Hongguo đang chạy job khác — chờ xong rồi Update all'); return; }
+  _lsnBusy=true; lsnRender();
+  lsnHint('Đang gửi Update all tới Hongguo…');
+  try{
+    await jpost('/api/hg/library/update',{});
+  }catch(e){
+    _lsnBusy=false; lsnRender();
+    lsnHint(e.message||String(e));
+    return;
+  }
+  const t0=Date.now(), maxMs=12*60*1000;
+  while(Date.now()-t0<maxMs){
+    await new Promise(r=>setTimeout(r,2000));
+    let d;
+    try{ d=await jget('/api/hg/status'); }catch(e){ continue; }
+    window.__hgLastStatus=d;
+    lsnTake(d); lsnRender();
+    const ss=d.seasons||{};
+    const state=String(ss.state||'');
+    if(d.running){
+      lsnHint('Update all đang chạy… '+(d.checked!=null? (d.checked+'/'+(d.to_check||'?')) : '')+(state?(' · '+state):''));
+      continue;
+    }
+    if(state==='done' || state==='idle' || (!d.running && _lsn)){
+      lsnHint(state==='done' ? 'Update all xong — board đã cập nhật' : ('Update all kết thúc · seasons.state='+(state||'—')));
+      break;
+    }
+    if(!d.running && Date.now()-t0>8000){
+      lsnHint('Update all đã gửi — chưa thấy seasons.state=done (Downloader đang chạy?)');
+      break;
+    }
+  }
+  _lsnBusy=false; lsnRender();
+}
+function lsnClick(e){
+  const b=e.target.closest('[data-lsn]'); if(!b || b.disabled) return;
+  const act=b.dataset.lsn;
+  if(act==='close'){ _lsnHide=true; lsnRender(); }
+  else if(act==='more'){ _lsnMore=!_lsnMore; lsnRender(); }
+  else if(act==='add'){ const sid=String(b.dataset.sid||''); if(LSN_ID.test(sid)) lsnSubmit([sid], b); }
+  else if(act==='big'){ const g=lsnBigAlbums().find(x=>x.album===String(b.dataset.alb||''));
+    const ids=g ? g.items.filter(x=>!_lsnAdded[x.sid]).map(x=>String(x.sid)) : []; if(ids.length) lsnSubmit(ids, b); }
+  else if(act==='decline'){ const alb=String(b.dataset.alb||''); if(LSN_ID.test(alb)) lsnDecline(alb, b); }
+}
+
 async function refreshStatus(){
   try{
     const d=await jget('/api/hg/status');
@@ -2050,6 +2350,8 @@ async function refreshAll(){
   }
 }
 loadDlQueueFromStorage();
+const _libSeasonsEl=document.getElementById('libSeasons');
+if(_libSeasonsEl) _libSeasonsEl.addEventListener('click', lsnClick);
 refreshAll();
 setInterval(()=>{ ping(); refreshStatus(); refreshMerge(); }, 4000);
 setInterval(refreshLibrary, 15000);

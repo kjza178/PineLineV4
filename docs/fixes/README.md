@@ -8,6 +8,12 @@ Bug sửa sau 2026-09-26 (chưa có file riêng) được ghi trong `docs/CHANGE
 
 | Date | File | Triệu chứng |
 |------|------|-------------|
+| 2026-11-06 | [hongguo2-review.md](./2026-11-06-hongguo2-review.md) | Hongguo2 CTA submit nhầm + selectedIds lẫn detail / hint |
+| 2026-11-06 | [hg-new-seasons.md](./2026-11-06-hg-new-seasons.md) | `/hongguo` thiếu board Mùa mới (Gợi ý / Sắp ra / Update all) |
+| 2026-11-06 | [merge-no-dup-output.md](./2026-11-06-merge-no-dup-output.md) | Merge split tạo output + output_full nhân đôi dung lượng |
+| 2026-11-05 | [split-voice-queue-opts.md](./2026-11-05-split-voice-queue-opts.md) | Part sau split dùng sai giọng (NgayCuoi thay vì queue_opts) |
+| 2026-11-05 | [autosplit-conflict-guards.md](./2026-11-05-autosplit-conflict-guards.md) | Auto-split pass 2 → parent 80% + TTS lại sau mux |
+| 2026-11-05 | [ui3-404-stages.md](./2026-11-05-ui3-404-stages.md) | UI3 TypeError khi job detail 404 / thiếu `stages` |
 | 2026-11-04 | [queue-sort-move.md](./2026-11-04-queue-sort-move.md) | Sort/move hàng chờ không đổi thứ tự thật (UI fallback + group_index) |
 | 2026-11-04 | [thumb-hardcoded-prompt.md](./2026-11-04-thumb-hardcoded-prompt.md) | Thumb AI chữ sai / prompt đóng cứng (ẨN NHẪN ≠ Lão Lục) |
 | 2026-11-04 | [hardsub-temporal-gaps.md](./2026-11-04-hardsub-temporal-gaps.md) | Hardsub chỗ có chỗ không theo thời gian (OCR miss ~58%) |

@@ -6,6 +6,8 @@ Các ngày từ 2026-09-25 đến 2026-10-06 được dựng lại ngày 6/10 t�
 
 | Ngày | Chủ đề |
 |---|---|
+| [2026-11-06](./2026-11-06.md) | Thiên phú S7 remake v1 + merge Full; merge no-dup hardlink |
+| [2026-11-05](./2026-11-05.md) | Sync UI3 404/stages null-safe từ V5 |
 | [2026-11-03](./2026-11-03.md) | Aurora pool file upload (bỏ JWT hết hạn) |
 | [2026-11-02](./2026-11-02.md) | Review V4 thừa/thiếu + port cập nhật từ V2 |
 | [2026-09-25](./2026-09-25.md) | assemble_fit / nén, restart V1/V2 |

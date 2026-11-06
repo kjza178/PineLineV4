@@ -941,11 +941,28 @@ def cancel(base: str = DEFAULT_BASE) -> dict:
     return _req("POST", base, "/dl/cancel")
 
 
-def submit(series_ids: list[str], base: str = DEFAULT_BASE) -> dict:
+def submit(series_ids: list[str], base: str = DEFAULT_BASE, scores: dict | None = None) -> dict:
     ids = [str(x).strip() for x in series_ids if str(x).strip()]
     if not ids:
         raise RuntimeError("series_ids trống")
-    return _req("POST", base, "/dl/submit", payload={"series_ids": ids})
+    payload: dict = {"series_ids": ids}
+    if scores:
+        payload["scores"] = scores
+    return _req("POST", base, "/dl/submit", payload=payload)
+
+
+def library_update(base: str = DEFAULT_BASE, names: list[str] | None = None) -> dict:
+    payload = {}
+    if names:
+        payload["names"] = [str(x) for x in names if str(x).strip()]
+    return _req("POST", base, "/dl/library/update", payload=payload)
+
+
+def seasons_decline(series_ids: list[str], base: str = DEFAULT_BASE) -> dict:
+    ids = [str(x).strip() for x in series_ids if str(x).strip()]
+    if not ids:
+        raise RuntimeError("series_ids trống")
+    return _req("POST", base, "/dl/library/seasons/decline", payload={"series_ids": ids})
 
 
 def rank(category: str = "all", board: str = "recommend",

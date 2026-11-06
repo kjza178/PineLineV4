@@ -1,4 +1,4 @@
-"""Trang UI chính thức V4: /, /ui3, /hongguo.
+"""Trang UI chính thức V4: /, /ui3, /hongguo, /hongguo2.
 
 UI duy nhất: index3.html. (index.html đã archive → scripts/archive/ui_legacy/)
 """
@@ -17,6 +17,7 @@ __all__ = [
     "ui3",
     "ui4",
     "ui_hongguo",
+    "ui_hongguo2",
     "router",
 ]
 
@@ -67,6 +68,12 @@ def _html_file(name: str) -> HTMLResponse:
 @router.get("/ui-hg", response_class=HTMLResponse)
 def ui_hongguo():
     return _html_file("hongguo.html")
+
+
+@router.get("/hongguo2", response_class=HTMLResponse)
+def ui_hongguo2():
+    """Hongguo2 — IA 2 cột Discover | Ops (không thay hongguo.html)."""
+    return _html_file("hongguo2.html")
 
 
 @router.get("/workflow", response_class=HTMLResponse)

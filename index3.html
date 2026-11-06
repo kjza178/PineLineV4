@@ -1063,9 +1063,10 @@ async function mergeAllSeries(){
 
 let selectedStep=null, panelJobId=null, lastPanelSig=null;
 function defaultStep(j){
-  if((j.stages.separate||{}).status==='running') return 'asr';
-  const run=STAGES.find(s=>(j.stages[s.key]||{}).status==='running'); if(run) return run.key;
-  const dn=STAGES.filter(s=>(j.stages[s.key]||{}).status==='done'); if(dn.length) return dn[dn.length-1].key;
+  const stages=(j&&j.stages)||{};
+  if((stages.separate||{}).status==='running') return 'asr';
+  const run=STAGES.find(s=>(stages[s.key]||{}).status==='running'); if(run) return run.key;
+  const dn=STAGES.filter(s=>(stages[s.key]||{}).status==='done'); if(dn.length) return dn[dn.length-1].key;
   return 'download';
 }
 function selectStep(key){ selectedStep=key; if(lastFull){ document.querySelectorAll('#mid-steps .step').forEach(el=>el.classList.toggle('sel',el.dataset.key===key)); renderPanel(lastFull,true); } }
@@ -1185,10 +1186,10 @@ function patchLogData(j){
 
 function renderDetail(j){
   const mid=document.getElementById('mid'), panel=document.getElementById('panel');
-  if(!j){
+  if(!j || !j.job_id || !j.stages){
     if(!composeOpen){
       applyComposeUi();
-      if(mid) mid.innerHTML='<div class="empty">Chọn một video trong hàng chờ.</div>';
+      if(mid) mid.innerHTML='<div class="empty">'+(j&&j.error?escapeHtml(String(j.error)):'Chọn một video trong hàng chờ.')+'</div>';
       if(panel) panel.innerHTML='<div class="empty pnl-empty">Chọn một bước để xem chi tiết.</div>';
     }
     lastFull=null; lastPanelSig=null; panelJobId=null;
@@ -3062,20 +3063,47 @@ async function refresh(){
     const j=cache.find(x=>x.job_id===selected)||null;
     if(j){
       setJobMode(true);
-      let full=await (await fetch('/api/jobs/'+selected)).json();
-      full=applyOpt(full);
-      // Soft-path: cùng job đã dựng khung → luôn patchDetailLive (kể cả khi running)
-      // Trước đây `|| status==='running'` ép renderDetail mỗi 2s → giật toàn UI.
-      if(shellMidOk(full)){
-        patchDetailLive(full);
+      const detRes=await fetch('/api/jobs/'+selected);
+      let full=await detRes.json().catch(()=>({}));
+      if(!detRes.ok || !full || !full.job_id || !full.stages){
+        // Job đã xoá / 404 / lỗi — bỏ selection (?job=) để không spam console
+        console.warn('job detail', detRes.status, selected, full&&full.error);
+        selected=null;
+        try{
+          const u=new URL(location.href);
+          if(u.searchParams.has('job')){ u.searchParams.delete('job'); history.replaceState(null,'',u.pathname+u.search+u.hash); }
+        }catch(_e){}
+        lastDetailSig=null; lastFull=null;
+        renderDetail(null);
       } else {
-        lastDetailSig=JSON.stringify({id:full.job_id,st:full.status,step:selectedStep});
-        renderDetail(full);
+        full=applyOpt(full);
+        // Soft-path: cùng job đã dựng khung → luôn patchDetailLive (kể cả khi running)
+        // Trước đây `|| status==='running'` ép renderDetail mỗi 2s → giật toàn UI.
+        if(shellMidOk(full)){
+          patchDetailLive(full);
+        } else {
+          lastDetailSig=JSON.stringify({id:full.job_id,st:full.status,step:selectedStep});
+          renderDetail(full);
+        }
       }
     }
     else {
-      if(composeOpen) applyComposeUi();
-      else { applyComposeUi(); if(lastDetailSig!==null){ lastDetailSig=null; renderDetail(null); } }
+      if(selected){
+        // Stale ?job= không còn trong list — clear URL, không spam detail 404
+        selected=null;
+        try{
+          const u=new URL(location.href);
+          if(u.searchParams.has('job')){ u.searchParams.delete('job'); history.replaceState(null,'',u.pathname+u.search+u.hash); }
+        }catch(_e){}
+        lastDetailSig=null; lastFull=null;
+        applyComposeUi();
+        if(!composeOpen) renderDetail(null);
+      } else if(composeOpen) {
+        applyComposeUi();
+      } else {
+        applyComposeUi();
+        if(lastDetailSig!==null){ lastDetailSig=null; renderDetail(null); }
+      }
     }
     void paintQueueStatus();
   }catch(e){ console.error('refresh error:', e); setConn(false); }

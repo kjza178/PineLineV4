@@ -1,6 +1,6 @@
 # Hiện trạng PinelineV4 (port từ V2)
 
-_Cập nhật: 2026-11-04 04:05 — thumb Latin (không dấu) + title YT prompt; chờ restart meta/auto-publish_
+_Cập nhật: 2026-11-06 ~08:20 — Hongguo2 `/hongguo2` + seasons board; chờ restart :8804 nạp route + hard refresh_
 
 ## Dịch vụ
 
@@ -48,7 +48,10 @@ Restart chỉ khi hàng đợi rảnh, hoặc user đồng ý (yes/no).
 
 ## Việc còn treo / cần user quyết
 
+- **Chờ hard refresh `/hongguo` + `/hongguo2`** — seasons board + trang Hongguo2 (HTML static).
+- **Chờ restart :8804** — nạp route `ui_hongguo2` + `hongguo_bridge`/`routes_hg` New seasons + còn `merge_job_parts` no-dup. Hỏi yes/no xoá part `*_p0N/output.mp4` (~23 GB trên d01).
 - ~~Restart :8804~~ — đã lên 01:16 3/11 (cùng :8801/:8805); Aurora pool-file + pronoun/review lock đã trong process.
+
 - API `/films/*` + `/meta/*` song song :8804 ↔ :8802 (Telegram) — giữ trừ khi gộp process.
 - RUNBOOK/ARCHITECTURE đã viết lại cho V4 (2026-11-02). Đoạn job/history dưới đây vẫn mang số liệu V2 cũ (tham khảo).
 - Attic: `scripts/archive/{launchers_legacy,tauri_desktop,ui_legacy,scratch_oneshot,docs_stale}/`.

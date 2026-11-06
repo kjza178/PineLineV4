@@ -227,7 +227,7 @@ def hg_submit(body: S.HgSubmitIn):
     import hongguo_bridge as hg
     hg = importlib.reload(hg)
     try:
-        return hg.submit(body.series_ids, _hg_base(body.base))
+        return hg.submit(body.series_ids, _hg_base(body.base), scores=body.scores)
     except Exception as e:  # noqa: BLE001
         return _hg_err(e)
 
@@ -407,6 +407,32 @@ def hg_library_delete(body: dict | None = None):
         return JSONResponse({"ok": False, "error": "Chưa chọn series để xoá"}, status_code=400)
     try:
         return hg.delete_library_series(names, _hg_base(body.get("base")))
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.post("/api/hg/library/update")
+def hg_library_update(body: dict | None = None):
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    body = body or {}
+    names = body.get("names")
+    try:
+        return hg.library_update(_hg_base(body.get("base")), names=names)
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.post("/api/hg/library/seasons/decline")
+def hg_seasons_decline(body: dict | None = None):
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    body = body or {}
+    series_ids = list(body.get("series_ids") or [])
+    try:
+        return hg.seasons_decline(series_ids, _hg_base(body.get("base")))
     except Exception as e:  # noqa: BLE001
         return _hg_err(e)
 
