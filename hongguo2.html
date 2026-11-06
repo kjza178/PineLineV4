@@ -264,7 +264,7 @@
   .page-shell > .top{flex:none}
   .page-shell > .layout{flex:1;min-height:0}
   .page-shell > .dock{flex:none}
-  .layout{display:grid;grid-template-columns:minmax(0,55fr) minmax(0,45fr);height:auto;min-height:0;gap:0}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px, min(34vw, 380px));height:auto;min-height:0;gap:0}
   .col-discover,.col-ops{display:flex;flex-direction:column;min-height:0;min-width:0}
   .col-discover{border-right:1px solid var(--line)}
   .col-ops{background:var(--side)}
@@ -285,18 +285,18 @@
   .cta-row{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);background:var(--panel)}
   .cta-row #sel-count{font-variant-numeric:tabular-nums}
   .ops-sec{display:flex;flex-direction:column;min-height:0;border-bottom:1px solid var(--line)}
-  .ops-sec.seasons{flex:0 0 auto;max-height:100px}
-  .ops-sec.seasons:has(#libSeasons:not(:empty)){max-height:160px}
+  .ops-sec.seasons{flex:0 0 auto;max-height:72px}
+  .ops-sec.seasons:has(#libSeasons:not(:empty)){max-height:120px}
   .ops-sec.library{flex:1 1 50%;min-height:140px}
   .ops-sec.queues{flex:0 1 32%;min-height:140px;border-bottom:0}
-  .ops-sec .ops-head{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--raise)}
+  .ops-sec .ops-head{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;background:var(--raise)}
   .ops-sec .ops-head h2{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
   .ops-sec .ops-head .cnt{margin-left:5px;font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--accent);color:#231a08}
   .ops-sec .ops-head .cnt:empty{display:none}
-  .ops-sec .ops-body{flex:1;min-height:0;overflow:auto;padding:8px 12px}
+  .ops-sec .ops-body{flex:1;min-height:0;overflow:auto;padding:6px 10px}
   .ops-sec .lib-toolbar{position:static;flex:none}
   .ops-sec #library{flex:1;min-height:0}
-  #ops-queue-pane{flex:1;min-height:0;overflow:auto;padding:8px 12px}
+  #ops-queue-pane{flex:1;min-height:0;overflow:auto;padding:6px 10px}
   .queue-pane-block[hidden],.merge-pane-block[hidden]{display:none!important}
   .top a.btn.link-old{border-color:var(--accent);color:var(--accent)}
   @media (max-width:1100px){

@@ -4,6 +4,8 @@ Mới nhất trên cùng. Mỗi mục: file/hàm — thay đổi — cần resta
 
 ## 2026-11-06
 
+- **Hongguo2 Ops hẹp** (~15:16). Sync `hongguo2.html` từ V2: Discover rộng, Ops `minmax(280px, min(34vw, 380px))`. **Hard refresh `/hongguo2`** (không restart).
+
 - **Hongguo2 review pass** (~08:30). Sync `hongguo2.html` từ V2 (CTA enqueue-only, `#results` scope, catalog-hint/cta-status, busy guards, UX). Fix `docs/fixes/2026-11-06-hongguo2-review.md`. **Hard refresh `/hongguo2`** (không restart).
 
 - **Hongguo2 redesign** (~08:20). Backup `Z:\PinelineV2_codebak\2026-11-06_0818_hongguo2\`. Thêm `hongguo2.html` (IA 2 cột Discover|Ops). Route `GET /hongguo2` → `ui_hongguo2` trong `routes_ui.py` + re-export `server.py`. Link «Thử Hongguo2» trên `hongguo.html`. Sync V2/V5. **Restart :8804** để nạp route; hard refresh `/hongguo2`.
