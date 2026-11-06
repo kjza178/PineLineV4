@@ -28,7 +28,7 @@ DEFAULTS: dict[str, Any] = {
     "ocr": False,
     "fit": True,
     "resolution": "source",
-    "zoom": 1.12,
+    "zoom": "1.12",
     "lut": True,
     "motion": True,
     "grain": "weak",
@@ -40,11 +40,6 @@ DEFAULTS: dict[str, Any] = {
     "frame": "off",
     "render_speed": 1.0,
     "hardsub_blur": True,
-    # Phim dài: tự detect duration ≥ auto_split_min_h → chia part (chống lệch sub)
-    "auto_split": True,
-    "auto_split_hours": 2.5,
-    "auto_split_min_h": 3.0,
-    "auto_merge": True,
 }
 
 CHOICES: dict[str, tuple[str, ...]] = {
@@ -80,10 +75,6 @@ LABELS: dict[str, str] = {
     "frame": "Khung",
     "render_speed": "Tốc độ Render (Lách bản quyền)",
     "hardsub_blur": "Che hardsub (blur/stretch)",
-    "auto_split": "Tự chia part phim dài",
-    "auto_split_hours": "Độ dài mỗi part (giờ)",
-    "auto_split_min_h": "Ngưỡng bắt đầu chia (giờ)",
-    "auto_merge": "Tự ghép full khi đủ part",
 }
 
 
@@ -91,7 +82,32 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def as_bool(val: Any, default: bool = True) -> bool:
+    """Parse bool an toàn — `bool("false")` là True nên không dùng raw bool()."""
+    if val is None:
+        return default
+    if isinstance(val, str):
+        v = val.strip().lower()
+        if v in ("1", "true", "on", "yes", "bật", "bat", "có", "co"):
+            return True
+        if v in ("0", "false", "off", "no", "tắt", "tat", "không", "khong", ""):
+            return False
+        return default
+    return bool(val)
+
+
 def _coerce(key: str, val: Any) -> Any:
+    if key == "zoom":
+        s = "" if val is None else str(val).strip().lower()
+        if s in ("off", "none", "0", "false", "no", "1", "1.0", "1.00"):
+            return "off"
+        try:
+            f = float(s)
+            if f <= 1.01:
+                return "off"
+            return f"{f:.2f}"
+        except ValueError:
+            return "1.12"
     base = DEFAULTS[key]
     if isinstance(base, bool):
         if isinstance(val, str):
@@ -154,7 +170,7 @@ def resolve_job_opts(*layers: dict[str, Any] | None, fill_voice: bool = True) ->
 
 def _norm_zoom(v: Any) -> float:
     if v is None:
-        return DEFAULTS["zoom"]
+        v = DEFAULTS["zoom"]
     s = str(v).strip().lower()
     if s in ("off", "none", "0", "false", "no", "1", "1.0", "1.00"):
         return 1.0
@@ -162,7 +178,7 @@ def _norm_zoom(v: Any) -> float:
         f = float(s)
         return 1.0 if f <= 1.01 else f
     except ValueError:
-        return DEFAULTS["zoom"]
+        return 1.12
 
 
 def render_kwargs(o: dict[str, Any]) -> dict[str, Any]:
@@ -187,7 +203,11 @@ def render_kwargs(o: dict[str, Any]) -> dict[str, Any]:
         "frame": str(o.get("frame") or "off"),
         "vbitrate": str(o.get("vbitrate") or DEFAULTS["vbitrate"]),
         "speed_factor": float(o.get("render_speed") or o.get("speed_factor") or 1.0),
-        "hardsub_blur": bool(o["hardsub_blur"]) if o.get("hardsub_blur") is not None else True,
+        "hardsub_blur": (
+            _coerce("hardsub_blur", o["hardsub_blur"])
+            if o.get("hardsub_blur") is not None
+            else True
+        ),
     }
 
 

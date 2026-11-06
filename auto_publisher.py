@@ -34,6 +34,10 @@ GLOBAL_PUBLISH_LOCK_FILE = DATA_DIR / ".auto_publish_global.lock"
 PUBLISH_QUEUE_FILE = DATA_DIR / "auto_publish_queue.json"
 QUEUE_LOCK_FILE = DATA_DIR / ".auto_publish_queue"
 
+# YouTube thường từ chối video >~12h; 11.5h + 64GiB = soft refuse (auto) / confirm (manual).
+YT_MAX_DURATION_SEC = 41400
+YT_HUGE_SIZE_BYTES = 64 * 1024 * 1024 * 1024
+
 _lock = threading.Lock()
 _scan_lock = threading.Lock()
 _publish_serial_lock = threading.Lock()
@@ -126,6 +130,7 @@ def _enqueue_job_record(
     privacy: str | None = None,
     schedule_hours: float | None = None,
     force: bool = False,
+    allow_oversized: bool = False,
 ) -> list[dict[str, Any]]:
     """Thêm job vào hàng chờ upload liên tiến trình (data/auto_publish_queue.json)."""
     job_id = str(job_id or "").strip()
@@ -143,12 +148,15 @@ def _enqueue_job_record(
                     existing["schedule_hours"] = schedule_hours
                 if force:
                     existing["force"] = True
+                if allow_oversized:
+                    existing["allow_oversized"] = True
             else:
                 items.append({
                     "job_id": job_id,
                     "privacy": privacy,
                     "schedule_hours": schedule_hours,
                     "force": bool(force),
+                    "allow_oversized": bool(allow_oversized),
                     "enqueued_at": time.time(),
                 })
             # Sắp xếp hàng chờ theo thứ tự bộ & phần (P1 -> Pn)
@@ -167,6 +175,7 @@ def _enqueue_job_record(
                 "privacy": privacy,
                 "schedule_hours": schedule_hours,
                 "force": bool(force),
+                "allow_oversized": bool(allow_oversized),
                 "enqueued_at": time.time(),
             })
             _write_publish_queue(items)
@@ -652,11 +661,31 @@ def _revert_job_to_done(job_id: str, error_msg: str | None = None) -> None:
         pass
 
 
+def _oversized_youtube_reasons(row: dict | None, out_path: str | Path | None) -> list[str]:
+    """Lý do file quá dài/nặng cho YouTube (dùng từ chối auto-publish)."""
+    reasons: list[str] = []
+    try:
+        dur = float((row or {}).get("duration_sec") or 0)
+    except Exception:
+        dur = 0.0
+    if dur > YT_MAX_DURATION_SEC:
+        reasons.append(f"duration ~{dur/3600:.1f}h > 11.5h")
+    try:
+        p = Path(out_path) if out_path else None
+        size = p.stat().st_size if p and p.is_file() else 0
+    except Exception:
+        size = 0
+    if size >= YT_HUGE_SIZE_BYTES:
+        reasons.append(f"size ~{size/(1024**3):.1f} GiB ≥ 64 GiB")
+    return reasons
+
+
 def enqueue_publish(
     job_id: str,
     privacy: str | None = None,
     schedule_hours: float | None = None,
     force: bool = False,
+    allow_oversized: bool = False,
 ) -> dict[str, Any]:
     """
     Đưa job vừa hoàn thành vào hàng đợi xuất bản tuần tự (không làm đứt quãng job đang upload).
@@ -670,7 +699,33 @@ def enqueue_publish(
     except Exception as e_sync:
         print(f"[auto-publish] Cảnh báo sync_one({job_id}): {e_sync}", flush=True)
 
-    items = _enqueue_job_record(job_id, privacy=privacy, schedule_hours=schedule_hours, force=force)
+    # Soft-refuse file quá dài trước khi xếp hàng (auto); manual UI truyền allow_oversized=True sau confirm.
+    if not allow_oversized:
+        row = film_db.get(job_id) or {}
+        out_path = row.get("output_path")
+        if not out_path or not Path(str(out_path)).is_file():
+            cand = ROOT / "work" / job_id / "output.mp4"
+            out_path = str(cand) if cand.is_file() else out_path
+        reasons = _oversized_youtube_reasons(row, out_path)
+        if reasons:
+            msg = "Từ chối auto-publish: file quá dài/nặng cho YouTube (" + "; ".join(reasons) + ")"
+            print(f"[auto-publish] {job_id}: {msg}", flush=True)
+            return {
+                "ok": False,
+                "error": msg,
+                "refused_oversized": True,
+                "need_confirm": True,
+                "warnings": reasons,
+                "job_id": job_id,
+            }
+
+    items = _enqueue_job_record(
+        job_id,
+        privacy=privacy,
+        schedule_hours=schedule_hours,
+        force=force,
+        allow_oversized=allow_oversized,
+    )
     _sync_queue_state_badge()
     print(f"[auto-publish] Đã xếp job {job_id} vào hàng đợi xuất bản (tổng hàng chờ: {len(items)}).", flush=True)
     _drain_publish_queue_async()
@@ -719,6 +774,7 @@ def _drain_publish_queue_loop() -> None:
                 privacy=item.get("privacy"),
                 schedule_hours=item.get("schedule_hours"),
                 force=bool(item.get("force", False)),
+                allow_oversized=bool(item.get("allow_oversized", False)),
             )
             if isinstance(res, dict) and res.get("stop_queue"):
                 print(
@@ -751,6 +807,7 @@ def publish_job(
     privacy: str | None = None,
     schedule_hours: float | None = None,
     force: bool = False,
+    allow_oversized: bool = False,
 ) -> dict[str, Any]:
     """
     Quy trình toàn diện: Sinh Metadata qua Aurora → Dựng Thumbnail 16:9 → Upload lên YouTube.
@@ -767,8 +824,33 @@ def publish_job(
     except Exception:
         pass
 
+    # Soft-refuse oversized trước khi chiếm lock (manual UI set allow_oversized sau confirm).
+    if not allow_oversized:
+        row0 = film_db.get(job_id) or {}
+        out0 = row0.get("output_path")
+        if not out0 or not Path(str(out0)).is_file():
+            cand0 = ROOT / "work" / job_id / "output.mp4"
+            out0 = str(cand0) if cand0.is_file() else out0
+        reasons0 = _oversized_youtube_reasons(row0, out0)
+        if reasons0:
+            msg = "Từ chối publish: file quá dài/nặng cho YouTube (" + "; ".join(reasons0) + ")"
+            return {
+                "ok": False,
+                "error": msg,
+                "refused_oversized": True,
+                "need_confirm": True,
+                "warnings": reasons0,
+                "job_id": job_id,
+            }
+
     # Ghi nhận vào hàng chờ liên tiến trình để UI hiển thị số lượng phim đang chờ
-    _enqueue_job_record(job_id, privacy=privacy, schedule_hours=schedule_hours, force=force)
+    _enqueue_job_record(
+        job_id,
+        privacy=privacy,
+        schedule_hours=schedule_hours,
+        force=force,
+        allow_oversized=allow_oversized,
+    )
     _sync_queue_state_badge()
 
     with _lock:
@@ -805,6 +887,7 @@ def publish_job(
         release_global_publish_lock(global_fd, global_lp)
         stop_q = bool(result.get("stop_queue") or result.get("upload_limit_exceeded"))
         if stop_q:
+            # Giữ job (và phần còn lại) trong queue — hết hạn mức thì upload tiếp sẽ fail hàng loạt
             print(
                 f"[auto-publish] Không dequeue / không drain tiếp — uploadLimitExceeded (job {job_id}).",
                 flush=True,
@@ -815,6 +898,7 @@ def publish_job(
             with _lock:
                 _active_jobs.discard(job_id)
             _sync_queue_state_badge()
+            # Nếu vẫn còn job trong hàng đợi thì kích hoạt xử lý tiếp
             if _read_publish_queue() and not _stop_event.is_set():
                 _drain_publish_queue_async()
         if stop_q:
@@ -1286,7 +1370,8 @@ def scan_and_publish_completed_jobs() -> dict[str, Any]:
 
     try:
         from fileio import file_lock
-        with file_lock(SCAN_LOCK_FILE, timeout=0.1, stale_sec=14400.0):
+        # Scan chỉ giữ lock ngắn — stale 3 phút (trước 4h khiến worker kẹt sau restart sidecar)
+        with file_lock(SCAN_LOCK_FILE, timeout=0.5, stale_sec=180.0):
             count = _scan_and_publish_impl()
             return {"ok": True, "busy": False, "scanned": count}
     except TimeoutError:

@@ -1,17 +1,17 @@
 # Hiện trạng PinelineV4 (port từ V2)
 
-_Cập nhật: 2026-11-06 ~08:20 — Hongguo2 `/hongguo2` + seasons board; chờ restart :8804 nạp route + hard refresh_
+_Cập nhật: 2026-11-07 ~01:15 — Skip UX sticky live trên Films; **chờ restart :8801** (hardsub_blur); **chờ restart :8802 khi idle** (oversized enqueue/auto-pub + skip message — PID 35972, auto-pub state từng `uploading`)_
 
 ## Dịch vụ
 
 | Dịch vụ | Cổng | PID | Khởi động bằng | Ghi chú |
 |---|---|---|---|---|
-| Pineline V4 `server.py` / desktop | **8804** | **39588** (01:16 3/11) | `run_v4.bat` / `server.py` | TEMP `D:\PinelineV4_tmp`. `llm.py` pool-first file upload. |
-| Sidecar Auto-pilot + Telegram `agent_tele_cmd.py` | 8802 | 22156 | `run_tele_cmd.bat` (`PINELINE_BASE` theo `PORT`) | Vẫn gắn V2; không restart lần này. |
-| Pineline V2 | **8801** | **15120** (01:16 3/11) | `restart_server.py --clean-env` | Queue rỗng sau restart. |
-| Pineline V5 | **8805** | **35824** (01:16 3/11) | `server.py --port 8805` | TEMP `D:\PinelineV5_tmp`. |
-| Hongguo Downloader | 8000 | — | app riêng | Cần UI token; API `/dl/*`. |
-| llama-server `qwen36-turbo` | 8083 | 35080 | `E:\models\presets\ui-server.ps1` | Giữ ~7,7 GB VRAM. **Không kill khi chưa được phép.** |
+| Pineline V4 `server.py` / desktop | **8804** | — (không listening 21:43 5/11) | `run_v4.bat` / `server.py` | TEMP `D:\PinelineV4_tmp`. `llm.py` pool-first file upload. |
+| Sidecar Auto-pilot + Telegram `agent_tele_cmd.py` | 8802 | **35972** (live; chưa restart sau Skip UX) | `python agent_tele_cmd.py` cwd V2 | Films Skip sticky UI live từ disk. Python oversized/skip refine chờ restart idle. |
+| Pineline V2 | **8801** | (restart ~21:17 6/11) | `restart_server.py --ignore-hg --clean-env` | Translate force `88d80ba0be0f` (~5%+); harden `_clear_stop` dual-path trên disk **chưa** nạp process. Llama :8083 không đụng. |
+| Pineline V5 | **8805** | — (không listening 21:43 5/11) | `server.py --port 8805` | TEMP `D:\PinelineV5_tmp`. |
+| Hongguo Downloader | 8000 | **20160** | app riêng | Cần UI token; API `/dl/*`. **Không kill.** |
+| llama-server `qwen36-turbo` | 8083 | **22796** | `E:\models\presets\ui-server.ps1` | Type-C GPU; ~7 GB VRAM. **Không kill.** |
 | 9router (LLM router) | 192.168.31.247:20128 | — | máy khác trong LAN | Model đang dùng: `ollama/gemma4:31b-cloud`. Combo `openclaw` hỏng. |
 | YT uploader | — | — | `Z:\yt_uploader` (app desktop riêng) | Restart mất danh sách upload. Upload cần user cho phép. |
 
@@ -48,10 +48,11 @@ Restart chỉ khi hàng đợi rảnh, hoặc user đồng ý (yes/no).
 
 ## Việc còn treo / cần user quyết
 
-- **Chờ hard refresh `/hongguo` + `/hongguo2`** — seasons board + trang Hongguo2 (HTML static).
-- **Chờ restart :8804** — nạp `_plan_block_for_qa` + llm no-retry 413 (pronoun-QA) + route `ui_hongguo2` / seasons / merge no-dup. Hỏi yes/no xoá part `*_p0N/output.mp4` (~23 GB trên d01).
+- **Chờ restart :8801** — nạp `MuxReq`/`RunAllReq.hardsub_blur` + `as_bool` queue/render; thêm `TranslateReq.force` + dual-path `_clear_stop`. Live OpenAPI chưa có `hardsub_blur`. Fix `docs/fixes/2026-11-07-hardsub-blur-toggle.md`.
+- **Chờ restart :8802 khi idle** — nạp `uploader_settings_api` allow_huge + `auto_publisher` refuse oversized + `allow_oversized` trên trigger/combine. UI Skip sticky đã live (hard refresh). Fix `docs/fixes/2026-11-07-uploader-skip-ux.md`.
+- ~~Chờ restart :8801 (hongguo2)~~ — đã restart 15:13 6/11; `/hongguo2` 200 + body Hongguo2.
+- **Hard refresh `/hongguo` + `/hongguo2`** — seasons board + trang Hongguo2 (HTML static) nếu browser còn cache cũ.
 - ~~Restart :8804~~ — đã lên 01:16 3/11 (cùng :8801/:8805); Aurora pool-file + pronoun/review lock đã trong process.
-
 - API `/films/*` + `/meta/*` song song :8804 ↔ :8802 (Telegram) — giữ trừ khi gộp process.
 - RUNBOOK/ARCHITECTURE đã viết lại cho V4 (2026-11-02). Đoạn job/history dưới đây vẫn mang số liệu V2 cũ (tham khảo).
 - Attic: `scripts/archive/{launchers_legacy,tauri_desktop,ui_legacy,scratch_oneshot,docs_stale}/`.

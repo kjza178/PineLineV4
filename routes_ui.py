@@ -1,4 +1,6 @@
-"""Trang UI chính thức V4: /, /ui3, /hongguo, /hongguo2.
+"""Trang UI chính thức V4: /, /ui3, /hongguo.
+
+/hongguo2 → 302 /hongguo (Hongguo2 đã bỏ).
 
 UI duy nhất: index3.html. (index.html đã archive → scripts/archive/ui_legacy/)
 """
@@ -18,6 +20,7 @@ __all__ = [
     "ui4",
     "ui_hongguo",
     "ui_hongguo2",
+    "ui_v5_map",
     "router",
 ]
 
@@ -58,7 +61,7 @@ def ui4():
 
 def _html_file(name: str) -> HTMLResponse:
     here = Path(__file__).parent
-    for p in (here / name, Path(name)):
+    for p in (here / name, here / "static" / "ui" / name, Path(name)):
         if p.exists():
             return HTMLResponse(p.read_text(encoding="utf-8"))
     return HTMLResponse(f"<h2>Không tìm thấy {name}</h2>", status_code=404)
@@ -70,10 +73,17 @@ def ui_hongguo():
     return _html_file("hongguo.html")
 
 
-@router.get("/hongguo2", response_class=HTMLResponse)
+@router.get("/hongguo2")
 def ui_hongguo2():
-    """Hongguo2 — IA 2 cột Discover | Ops (không thay hongguo.html)."""
-    return _html_file("hongguo2.html")
+    """Deprecated — redirect về Hongguo gốc (Hongguo2 bỏ dùng)."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/hongguo", status_code=302)
+
+
+@router.get("/v5-map", response_class=HTMLResponse)
+def ui_v5_map():
+    """Interactive module/call graph (static HTML; curated nodes)."""
+    return _html_file("v5-map.html")
 
 
 @router.get("/workflow", response_class=HTMLResponse)

@@ -1,5 +1,5 @@
 """
-agent_core.py — AI Agent nhúng trong Pineline V4.
+agent_core.py — AI Agent nhúng trong Pineline V2.
 
 Không gọi HTTP self. Tools gọi runtime đã bind từ server.py
 (list jobs, queue, manifest, draft YT).
@@ -305,7 +305,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "pineline_run_stage",
-            "description": "Chạy 1 stage (asr|translate|tts|mux|ocr|…). Cần allow_mutate.",
+            "description": "Chạy 1 stage (asr|translate|tts|mux|ocr|…) — fire-and-forget. Cần allow_mutate.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -316,6 +316,56 @@ TOOLS = [
                     "engine": {"type": "string"},
                 },
                 "required": ["job_id", "stage"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pineline_run_stage_wait",
+            "description": (
+                "TOOL LOOP: chạy 1 stage rồi CHỜ tới done|failed|stopped (poll manifest trong tool). "
+                "force=false + đã done → skip, không wipe. Cần allow_mutate."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "string"},
+                    "stage": {"type": "string"},
+                    "voice": {"type": "string"},
+                    "force": {"type": "boolean"},
+                    "engine": {"type": "string"},
+                    "timeout_sec": {"type": "number"},
+                    "poll_sec": {"type": "number"},
+                },
+                "required": ["job_id", "stage"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pineline_pipeline_loop",
+            "description": (
+                "TOOL LOOP: chạy tuần tự nhiều stage (vd translate,tts,mux); mỗi bước chờ xong mới bước sau. "
+                "force=false → skip stage đã done. Cần allow_mutate."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_id": {"type": "string"},
+                    "stages": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "vd [\"translate\",\"tts\",\"mux\"]",
+                    },
+                    "voice": {"type": "string"},
+                    "force": {"type": "boolean"},
+                    "engine": {"type": "string"},
+                    "timeout_sec": {"type": "number"},
+                    "poll_sec": {"type": "number"},
+                },
+                "required": ["job_id", "stages"],
             },
         },
     },
@@ -882,6 +932,8 @@ MUTATE_TOOLS = frozenset({
     "pineline_script_edit_many",
     "pineline_hold_after_translate",
     "pineline_run_stage",
+    "pineline_run_stage_wait",
+    "pineline_pipeline_loop",
     "pineline_stop_job",
     "pineline_tts_set_voice",
     "pineline_tts_run",
@@ -906,6 +958,8 @@ CONFIRM_TOOLS = frozenset({
 })
 FORCE_CONFIRM_TOOLS = frozenset({
     "pineline_run_stage",
+    "pineline_run_stage_wait",
+    "pineline_pipeline_loop",
     "pineline_tts_run",
     "pineline_asr_run",
     "pineline_ocr_run",
@@ -1404,6 +1458,39 @@ def _dispatch(name: str, args: dict, allow_mutate: bool) -> str:
                 "engine": args.get("engine"),
             }
             res = rt.run_stage(args["job_id"], str(args["stage"]), opts)
+            return json.dumps(res, ensure_ascii=False, indent=2, default=str)
+        if name == "pineline_run_stage_wait":
+            if not rt.run_stage:
+                return json.dumps({"error": "run_stage chưa bind"})
+            from agent_tool_loop import run_stage_wait
+            opts = {
+                "voice": args.get("voice"),
+                "force": _truthy(args.get("force")),
+                "engine": args.get("engine"),
+            }
+            res = run_stage_wait(
+                rt.run_stage, rt.work_root, args["job_id"], str(args["stage"]), opts,
+                timeout_sec=float(args.get("timeout_sec") or 3600),
+                poll_sec=float(args.get("poll_sec") or 2),
+            )
+            return json.dumps(res, ensure_ascii=False, indent=2, default=str)
+        if name == "pineline_pipeline_loop":
+            if not rt.run_stage:
+                return json.dumps({"error": "run_stage chưa bind"})
+            from agent_tool_loop import pipeline_loop
+            stages = args.get("stages") or []
+            if isinstance(stages, str):
+                stages = [s.strip() for s in stages.split(",") if s.strip()]
+            opts = {
+                "voice": args.get("voice"),
+                "force": _truthy(args.get("force")),
+                "engine": args.get("engine"),
+            }
+            res = pipeline_loop(
+                rt.run_stage, rt.work_root, args["job_id"], list(stages), opts,
+                timeout_sec=float(args.get("timeout_sec") or 7200),
+                poll_sec=float(args.get("poll_sec") or 2),
+            )
             return json.dumps(res, ensure_ascii=False, indent=2, default=str)
         if name == "pineline_stage_peek":
             return _stage_json(peek_stage(rt.work_root, args["job_id"], str(args["stage"])))

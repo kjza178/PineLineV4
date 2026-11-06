@@ -2,7 +2,7 @@
 server.py — Backend web Phase 1 (FastAPI).
 
 Bọc engine (download -> asr -> translate) thành app web:
-  - Phục vụ trang dashboard (index3.html)
+  - Phục vụ trang dashboard (web/index.html)
   - Tạo job, chạy pipeline ở THREAD NỀN, đọc trạng thái từ manifest.json
 
 Chạy:
@@ -53,6 +53,7 @@ from translate import run_translate, run_review, count_script_missing
 from ocr import run_ocr
 from separate import run_separate
 from render import run_render
+from render_fx import clamp_zoom
 from clone_tts import (
     run_clone_tts, list_clone_voices, synth_one, enroll_voice,
     resynth_clip as _clone_resynth,
@@ -72,6 +73,9 @@ _STOP_JOBS: set[str] = set()
 # Chặn double-click: (job_id, stage|"__all__") đang được xếp hàng / chạy.
 _STAGE_BUSY: set[tuple[str, str]] = set()
 _STAGE_BUSY_LOCK = threading.Lock()
+# Chặn auto-split pass chồng trong cùng process (parent đã merged / đang chạy).
+_AUTO_SPLIT_ACTIVE: set[str] = set()
+_AUTO_SPLIT_LOCK = threading.Lock()
 
 
 def _mux_output_ok(work_dir: Path, min_bytes: int = 1_000_000) -> bool:
@@ -83,7 +87,7 @@ def _mux_output_ok(work_dir: Path, min_bytes: int = 1_000_000) -> bool:
 
 
 def _part_pipeline_complete(work_dir: Path) -> bool:
-    """Part/job đã mux + output, không stale → không chạy lại GPU pipeline."""
+    """Part đã mux + output đủ lớn và không bị đánh stale → không chạy lại pipeline."""
     work_dir = Path(work_dir)
     if not _mux_output_ok(work_dir):
         return False
@@ -104,7 +108,7 @@ def _part_pipeline_complete(work_dir: Path) -> bool:
 
 
 def _ensure_parent_mux_merged_done(work_dir: Path, n_parts: int | None = None) -> None:
-    """Heal UI parent: Full đã merge mà mux còn running@80%."""
+    """Heal UI parent: đã có Full/merged mà mux còn running@80%."""
     work_dir = Path(work_dir)
     try:
         m = Manifest(work_dir)
@@ -127,10 +131,7 @@ def _ensure_parent_mux_merged_done(work_dir: Path, n_parts: int | None = None) -
         si["status"] = "merged"
         m.data["split_info"] = si
     m.save()
-    try:
-        _job_cache.pop(str(work_dir), None)
-    except NameError:
-        pass
+    _job_cache.pop(str(work_dir), None)
 
 
 def _job_any_busy(job_id: str) -> str | None:
@@ -462,14 +463,11 @@ def _iter_job_engine_procs(job_id: str, script_name: str | None = None):
         pass
     script_l = (script_name or "").lower()
     asr_family = {s.lower() for s in _HEAVY_ENGINE_SCRIPTS if "asr" in s.lower() or s == "asr.py"}
-    for p in psutil.process_iter(["pid", "name"]):
+    for p in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             if p.info["pid"] == me:
                 continue
-            pname = (p.info.get("name") or "").lower()
-            if not ("python" in pname or "ffmpeg" in pname or "aria2" in pname):
-                continue
-            cmd = p.cmdline()
+            cmd = p.info.get("cmdline") or []
             if not cmd:
                 continue
             joined = " ".join(str(x) for x in cmd)
@@ -503,44 +501,6 @@ def _kill_job_engine_procs(job_id: str, script_name: str | None = None, exclude_
             n += 1
         except Exception:  # noqa: BLE001
             pass
-    return n
-
-
-def _kill_all_orphan_engine_procs() -> int:
-    """Kill toàn bộ orphan engine process trong WORK_ROOT (1 lượt quét duy nhất system-wide)."""
-    try:
-        import psutil
-    except Exception:  # noqa: BLE001
-        return 0
-    me = os.getpid()
-    work_str = str(WORK_ROOT).lower().replace("\\", "/")
-    try:
-        work_real = os.path.realpath(WORK_ROOT).lower().replace("\\", "/")
-    except OSError:
-        work_real = work_str
-    needles = {work_str, work_real}
-
-    n = 0
-    for p in psutil.process_iter(["pid", "name"]):
-        try:
-            if p.info["pid"] == me:
-                continue
-            pname = (p.info.get("name") or "").lower()
-            if not ("python" in pname or "ffmpeg" in pname or "aria2" in pname):
-                continue
-            cmd = p.cmdline()
-            if not cmd:
-                continue
-            joined = " ".join(str(x) for x in cmd)
-            low = joined.lower().replace("\\", "/")
-            if not any(wn in low for wn in needles):
-                continue
-            if any(s.lower() in low for s in _HEAVY_ENGINE_SCRIPTS) or "ffmpeg" in pname:
-                print(f"[proc] kill orphan pid={p.pid} cmd={cmd[:3]}")
-                p.kill()
-                n += 1
-        except Exception:  # noqa: BLE001
-            continue
     return n
 
 
@@ -678,6 +638,7 @@ def _stop_job(job_id: str) -> None:
         for name, st in list((m.data.get("stages") or {}).items()):
             if not isinstance(st, dict) or st.get("status") != "running":
                 continue
+            # Parent đã merge Full mà mux còn "running Part k/N" → Stop phải về done, không pending
             if name == "mux" and already_merged:
                 n = len(si.get("sub_job_ids") or []) or 0
                 st["status"] = "done"
@@ -694,10 +655,8 @@ def _stop_job(job_id: str) -> None:
             ch = True
         if ch:
             m.save()
-            try:
-                _job_cache.pop(str(wd), None)
-            except NameError:
-                pass
+            _job_cache.pop(str(wd), None)
+        # Stop part → heal parent mux nếu Full đã merge (tránh parent kẹt 80%)
         parent_id = (m.data.get("request") or {}).get("parent_job_id")
         if parent_id:
             try:
@@ -722,11 +681,17 @@ def _stop_job(job_id: str) -> None:
 
 
 def _clear_stop(job_id: str) -> None:
+    """Xoá cờ Stop in-memory + file .stop (cả WORK_ROOT lẫn D:\\PinelineV2_work).
+
+    Junction Z:\\…\\work ↔ D:\\…_work thường cùng inode, nhưng heal/UI đôi khi
+    ghi một path — unlink cả hai tránh ghost `.stop` làm translate dừng sớm.
+    """
     _STOP_JOBS.discard(job_id)
-    try:
-        (WORK_ROOT / job_id / ".stop").unlink(missing_ok=True)
-    except Exception:  # noqa: BLE001
-        pass
+    for base in {WORK_ROOT, Path(r"D:\PinelineV2_work")}:
+        try:
+            (base / job_id / ".stop").unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
 
 # Chuỗi BẮT BUỘC (tính % tổng): tải -> nhận diện -> dịch -> lồng tiếng -> ghép/xuất.
 WIRED_STAGES = ["download", "asr", "translate", "tts", "mux"]
@@ -898,11 +863,14 @@ def _reset_stale_running():
     Đồng thời kill orphan engine (firered_asr/…) còn sót từ PID server cũ.
 
     TTS: đếm lại seg_*.wav + khôi phục voice từ tts_config.json nếu mất."""
-    # Dọn orphan ASR/TTS toàn hệ thống theo work/ (1 lượt quét duy nhất)
+    # Dọn orphan ASR/TTS toàn hệ thống theo job trong work/
     if WORK_ROOT.exists():
-        n = _kill_all_orphan_engine_procs()
-        if n:
-            print(f"[startup] kill {n} orphan engine toàn hệ thống")
+        for d in WORK_ROOT.iterdir():
+            if not d.is_dir():
+                continue
+            n = _kill_job_engine_procs(d.name, None)
+            if n:
+                print(f"[startup] kill {n} orphan engine của job {d.name}")
     if not WORK_ROOT.exists():
         return
     for d in WORK_ROOT.iterdir():
@@ -1059,7 +1027,7 @@ class MuxReq(BaseModel):
     fit: bool = True              # khớp time (nén câu lố); False = giọng tốc độ tự nhiên
     resolution: str = "source"    # source | 1080 (1K)
     flip: str = ""                # "" | h | v | hv  (lật video lúc render)
-    zoom: float = 1.12            # 1.10 | 1.12 | 1.15
+    zoom: float | str = 1.12      # off | 1.10 | 1.12 | 1.15
     motion: bool = True           # Ken Burns + Drift
     lut: bool = True
     grain: str = "weak"           # off | weak | medium | strong
@@ -1069,6 +1037,7 @@ class MuxReq(BaseModel):
     brand_logo: str = "off"       # off | auto | filename
     frame: str = "off"            # off | auto | filename
     vbitrate: str = "8M"          # H264: 2M | 4M | 8M
+    hardsub_blur: bool = True     # True = che hardsub (blur/stretch); False = tắt
 
 
 class TranslateReq(BaseModel):
@@ -1076,6 +1045,9 @@ class TranslateReq(BaseModel):
     review_model: str | None = None   # có -> SOÁT lại lượt 2 bằng model này
     review_only: bool = False         # chỉ soát bản dịch có sẵn (không dịch lại)
     mode: str | None = None           # oneshot | batch | auto
+    force: bool = False               # True = xoá script.json rồi dịch lại từ đầu
+                                      # (mặc định False — resume/vá; trước đây _translate_flow
+                                      # hardcode True khiến mọi POST /translate wipe bản xong)
 
 
 class ScriptLineEdit(BaseModel):
@@ -1105,7 +1077,7 @@ class RunAllReq(BaseModel):
     translate_mode: str | None = None  # oneshot | batch | auto
     # Cùng opt render như Mux (1-click truyền xuống _do_render)
     flip: str = ""
-    zoom: float = 1.12
+    zoom: float | str = 1.12
     motion: bool = True
     lut: bool = True
     grain: str = "weak"
@@ -1115,6 +1087,7 @@ class RunAllReq(BaseModel):
     brand_logo: str = "off"
     frame: str = "off"
     vbitrate: str = "8M"          # H264: 2M | 4M | 8M
+    hardsub_blur: bool = True     # che hardsub blur/stretch (1-click + queue)
 
 
 class JobQueueReq(RunAllReq):
@@ -1134,7 +1107,7 @@ class JobQueueRemoveReq(BaseModel):
 
 
 class AgentChatReq(BaseModel):
-    """Pineline V4 — chat với AI Agent nhúng."""
+    """Pineline V2 — chat với AI Agent nhúng."""
     message: str
     history: list[dict] | None = None   # [{role, content}]
     allow_mutate: bool = False          # cho phép queue add/stop
@@ -1192,14 +1165,14 @@ def _process_gpu(job_id: str, target: str):
         _run_engine(_asr_script(eng), work_dir)  # subprocess -> UI không khựng
         if job_id in _STOP_JOBS:
             raise _Stopped(job_id)
-        _run_translate_engine(work_dir, target=target)  # subprocess riêng -> không giữ GIL
+        run_translate(work_dir, target=target)   # dịch = gọi Ollama qua HTTP, không giữ GIL
         # Kiểm tra missing trên disk (run_translate đã tự vá; còn sót → vá thêm 1 lượt)
         n_miss = count_script_missing(work_dir)
         if n_miss > 0:
             if job_id in _STOP_JOBS:
                 raise _Stopped(job_id)
             print(f"[gpu] {job_id}: sau dịch còn {n_miss} trống -> vá batch")
-            _run_translate_engine(work_dir, batch=25, target=target, mode="batch")
+            run_translate(work_dir, batch=25, target=target, mode="batch")
         # TTS KHÔNG tự chạy: người dùng chọn giọng rồi bấm "Tạo giọng".
     except _Stopped:
         print(f"[gpu] {job_id}: đã DỪNG theo yêu cầu")
@@ -1223,6 +1196,142 @@ def run_pipeline(job_id: str, url: str, target: str, cookies_from_browser: str |
         print(f"[download] {job_id}: đã DỪNG sau tải — không xếp ASR")
         return
     _gpu.submit(_process_gpu, job_id, target)
+
+
+def _check_and_run_auto_split_parts(
+    job_id: str, target: str, audio_mode: str, voice_vol: float,
+    orig_vol: float, use_ocr: bool, fit: bool = True,
+    resolution: str = "source", translate_mode: str | None = None,
+    render_kw: dict | None = None, asr_engine: str | None = None,
+) -> bool:
+    """
+    Tự động phát hiện video dài (>= 3.0h):
+    1) Tự cắt thành các phần 2.0h-2.5h tại điểm khoảng lặng (silence).
+    2) Đánh số thứ tự từng part (Part 1/N, Part 2/N...).
+    3) Tự động làm việc từng part qua toàn bộ pipeline (ASR -> Dịch -> TTS -> Render).
+    4) Khi render xong tất cả các part -> tự động ghép nối thành file Full cuối cùng (output_full.mp4 & output.mp4).
+    Trả về True nếu đã xử lý qua cơ chế chia part; False nếu video ngắn chạy thẳng bình thường.
+    """
+    wd = WORK_ROOT / job_id
+    video = _find_video(wd)
+    if not video or not video.exists():
+        return False
+
+    from split_parts import probe_duration, split_job_to_subjobs, merge_job_parts, MIN_SPLIT_HOURS
+    m_chk = Manifest(wd)
+    # Nếu bản thân job này đã là sub-job con của job khác thì không chia tiếp
+    if m_chk.data.get("request", {}).get("parent_job_id"):
+        return False
+
+    split_info = m_chk.data.get("split_info") or {}
+    sub_ids = list(split_info.get("sub_job_ids") or [])
+    out_full = wd / "output_full.mp4"
+    out_mp4 = wd / "output.mp4"
+    full_ok = (
+        (out_full.is_file() and out_full.stat().st_size > 1_000_000)
+        or (out_mp4.is_file() and out_mp4.stat().st_size > 1_000_000 and bool(sub_ids))
+    )
+    # Đã merge Full → không chạy pass 2 (tránh parent 80% + TTS lại)
+    if split_info.get("status") == "merged" and full_ok:
+        _ensure_parent_mux_merged_done(wd, len(sub_ids) or None)
+        print(
+            f"[auto-split] {job_id}: đã merged + Full có sẵn — skip (chống luồng chồng).",
+            flush=True,
+        )
+        return True
+
+    dur = probe_duration(video)
+    if dur < MIN_SPLIT_HOURS * 3600.0:
+        return False
+
+    with _AUTO_SPLIT_LOCK:
+        if job_id in _AUTO_SPLIT_ACTIVE:
+            print(
+                f"[auto-split] {job_id}: đang chạy trong process này — skip chồng.",
+                flush=True,
+            )
+            return True
+        _AUTO_SPLIT_ACTIVE.add(job_id)
+
+    try:
+        print(f"\n{'='*70}\n[auto-split] PHÁT HIỆN VIDEO DÀI: {dur/3600:.2f}h >= {MIN_SPLIT_HOURS}h (Job {job_id})\n"
+              f"[auto-split] TỰ ĐỘNG CHIA PART -> CHẠY TỪNG PART -> GHÉP BẢN FULL CUỐI CÙNG\n{'='*70}\n", flush=True)
+
+        if not sub_ids:
+            st_dl = m_chk.data.setdefault("stages", {}).setdefault("download", {})
+            st_dl["cur_text"] = f"Video dài {dur/3600:.1f}h · Đang tự động dò khoảng lặng chia Part 2.5h…"
+            m_chk.save()
+            res_split = split_job_to_subjobs(job_id, target_hours=2.5, work_root=WORK_ROOT)
+            sub_ids = list(res_split.get("sub_job_ids") or [])
+
+        if not sub_ids:
+            print(f"[auto-split] Không thể chia sub-jobs cho {job_id}, chuyển về chạy bình thường", flush=True)
+            return False
+
+        print(f"[auto-split] Bắt đầu tự động xử lý tuần tự {len(sub_ids)} parts: {sub_ids}", flush=True)
+        m_p = Manifest(wd)
+        st_mux = m_p.data.setdefault("stages", {}).setdefault("mux", {})
+        st_mux["status"] = "running"
+        m_p.save()
+
+        for idx, s_id in enumerate(sub_ids, 1):
+            if job_id in _STOP_JOBS:
+                print(f"[auto-split] Dừng theo yêu cầu khi đang làm Part {idx}/{len(sub_ids)}: {s_id}", flush=True)
+                # Nếu Full đã có sẵn → heal mux done (đừng để 80% treo)
+                if (wd / "output_full.mp4").is_file() or _mux_output_ok(wd):
+                    _ensure_parent_mux_merged_done(wd, len(sub_ids))
+                return True
+
+            sub_wd = WORK_ROOT / s_id
+            if _part_pipeline_complete(sub_wd):
+                print(
+                    f"[auto-split] SKIP Part {idx}/{len(sub_ids)}: {s_id} đã mux/output (không chạy lại).",
+                    flush=True,
+                )
+                continue
+
+            print(f"\n[auto-split] >>> ĐANG LÀM VIỆC PART {idx}/{len(sub_ids)}: {s_id} <<<", flush=True)
+            m_p = Manifest(wd)
+            st_mux = m_p.data.setdefault("stages", {}).setdefault("mux", {})
+            st_mux["cur_text"] = f"Đang chạy tự động Part {idx}/{len(sub_ids)} ({s_id})…"
+            st_mux["progress"] = int((idx - 1) / len(sub_ids) * 100)
+            m_p.save()
+
+            # Chạy toàn bộ pipeline cho sub-job này (ASR -> Dịch -> TTS -> Render)
+            _auto_gpu(s_id, target, audio_mode, voice_vol, orig_vol, use_ocr,
+                      fit, resolution, translate_mode, render_kw or {},
+                      asr_engine=asr_engine)
+
+        if job_id in _STOP_JOBS:
+            if (wd / "output_full.mp4").is_file() or _mux_output_ok(wd):
+                _ensure_parent_mux_merged_done(wd, len(sub_ids))
+            return True
+
+        # Khi tất cả các part đã render xong -> tự động ghép thành bản Full!
+        print(f"\n[auto-split] TẤT CẢ {len(sub_ids)} PART ĐÃ XONG! TỰ ĐỘNG GHÉP NỐI THÀNH BẢN FULL...", flush=True)
+        m_p = Manifest(wd)
+        st_mux = m_p.data.setdefault("stages", {}).setdefault("mux", {})
+        st_mux["cur_text"] = f"Đang ghép {len(sub_ids)} part thành file Full cuối cùng…"
+        m_p.save()
+
+        res_merge = merge_job_parts(job_id, work_root=WORK_ROOT)
+        if res_merge.get("ok"):
+            print(f"[auto-split] {job_id}: HOÀN TẤT GHÉP BẢN FULL {res_merge.get('output_path')} ({res_merge.get('size_mb')}MB) ✓", flush=True)
+            m_p = Manifest(wd)
+            st_mux = m_p.data.setdefault("stages", {}).setdefault("mux", {})
+            st_mux["status"] = "done"
+            st_mux["progress"] = 100
+            st_mux["cur_text"] = f"Hoàn tất bản Full ({len(sub_ids)} parts ghép lại) ✓"
+            st_mux["from_split_merge"] = True
+            st_mux["is_full_merged"] = True
+            m_p.save()
+        else:
+            print(f"[auto-split] {job_id} lỗi ghép part: {res_merge.get('message')}", flush=True)
+
+        return True
+    finally:
+        with _AUTO_SPLIT_LOCK:
+            _AUTO_SPLIT_ACTIVE.discard(job_id)
 
 
 def _auto_pipeline(job_id: str, audio_mode: str, voice_vol: float, orig_vol: float,
@@ -1255,54 +1364,17 @@ def _auto_pipeline(job_id: str, audio_mode: str, voice_vol: float, orig_vol: flo
         if job_id in _STOP_JOBS or not _find_video(wd):
             return
 
-        # Auto-detect phim dài → chia part, xếp hàng sub-job (không ASR cả 12h)
-        try:
-            bc = batch_config.load()
-            if bool(bc.get("auto_split", True)):
-                from split_parts import maybe_auto_split_job
-                sp = maybe_auto_split_job(
-                    job_id,
-                    work_root=WORK_ROOT,
-                    enabled=True,
-                    target_hours=float(bc.get("auto_split_hours") or 2.5),
-                    min_hours=float(bc.get("auto_split_min_h") or 3.0),
-                )
-                if sp.get("split") and sp.get("sub_job_ids"):
-                    opts = {
-                        "audio_mode": audio_mode, "voice_vol": voice_vol, "orig_vol": orig_vol,
-                        "ocr": use_ocr, "fit": fit, "resolution": resolution,
-                        "translate_mode": translate_mode, "asr_engine": asr_engine,
-                        **(render_kw or {}),
-                    }
-                    # Giọng từ manifest
-                    try:
-                        qo = (Manifest(wd).data.get("queue_opts") or {})
-                        if qo.get("voice"):
-                            opts["voice"] = qo["voice"]
-                        if qo.get("speed") is not None:
-                            opts["speed"] = qo["speed"]
-                        if qo.get("tts_engine"):
-                            opts["tts_engine"] = qo["tts_engine"]
-                    except Exception:  # noqa: BLE001
-                        pass
-                    # Giữ đúng thứ tự p01 → p02 → … (queue chạy 1 job/lần = lần lượt từng part)
-                    job_queue.queue_add(
-                        list(sp["sub_job_ids"]), opts=opts, skip_done=True, sort_first=False,
-                    )
-                    print(
-                        f"[auto_split] run-all {job_id}: đã chia {sp.get('total_parts')} part "
-                        f"→ xếp hàng lần lượt {sp['sub_job_ids']}",
-                        flush=True,
-                    )
-                    return
-        except Exception as e_as:  # noqa: BLE001
-            print(f"[auto_split] run-all {job_id} bỏ qua: {e_as}", flush=True)
-
         def _gpu_wrapped():
             try:
-                _auto_gpu(job_id, target, audio_mode, voice_vol, orig_vol, use_ocr,
-                          fit, resolution, translate_mode, render_kw or {},
-                          asr_engine=asr_engine)
+                is_handled = _check_and_run_auto_split_parts(
+                    job_id, target, audio_mode, voice_vol, orig_vol, use_ocr,
+                    fit, resolution, translate_mode, render_kw or {},
+                    asr_engine=asr_engine,
+                )
+                if not is_handled:
+                    _auto_gpu(job_id, target, audio_mode, voice_vol, orig_vol, use_ocr,
+                              fit, resolution, translate_mode, render_kw or {},
+                              asr_engine=asr_engine)
             finally:
                 _release_stage(job_id, "__all__")
 
@@ -1401,6 +1473,7 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
     try:
         if stopped():
             return
+        # Part/job đã mux xong và không stale → không đốt lại ASR/TTS (chống auto-split pass 2)
         if _part_pipeline_complete(wd):
             print(
                 f"[auto] {job_id}: skip GPU pipeline — mux/output đã xong, không stale.",
@@ -1408,23 +1481,23 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             )
             return
         free_gpu_vram("trước ASR — nhường GPU")
-        # Ưu tiên engine từ opts hàng chờ — không lấy “leftover” lệch giữa các job
+        # ASR trực tiếp từ audio gốc — không ép Demucs để tránh cắt nuốt chữ / méo tiếng trên audio dài
         asr_eng = _resolve_asr_engine(wd, asr_engine)
         _run_engine(_asr_script(asr_eng), wd)
         if stopped():
             return
-        _run_translate_engine(wd, target=target, mode=translate_mode)
+        run_translate(wd, target=target, mode=translate_mode)
         # TỰ KIỂM TRA missing trên disk (không tin n_missing cũ trong manifest)
         n_miss = count_script_missing(wd)
         if n_miss > 0:
             print(f"[auto] {job_id}: dịch còn {n_miss} câu trống -> vá lô nhỏ")
-            _run_translate_engine(wd, batch=25, target=target, mode="batch")
+            run_translate(wd, batch=25, target=target, mode="batch")
             n_miss = count_script_missing(wd)
             if n_miss > 0:
                 print(f"[auto] {job_id}: vẫn còn {n_miss} trống sau vá — TTS sẽ bỏ qua câu thiếu")
         if stopped():
             return
-        # Pineline V4 Agent: HOLD sau translate — không TTS đến khi duyệt script
+        # Pineline V2 Agent: HOLD sau translate — không TTS đến khi duyệt script
         m_hold = Manifest(wd)
         agent_cfg = m_hold.data.get("agent") or {}
         if agent_cfg.get("hold_after_translate"):
@@ -1485,7 +1558,10 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             return
         if audio_mode in ("demucs_keep", "demucs_clean"):   # cần tách nền
             free_gpu_vram("trước tách nền")
-            run_separate(wd)
+            import importlib
+            import separate as _sep_mod
+            _sep_mod = importlib.reload(_sep_mod)
+            _sep_mod.run_separate(wd)
             if stopped():
                 return
         if use_ocr:
@@ -1498,7 +1574,7 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             wd, force=False, audio_mode=audio_mode, voice_vol=voice_vol,
             orig_vol=orig_vol, fit=fit, resolution=resolution,
             flip=str(rkw.get("flip") or ""),
-            zoom=float(rkw.get("zoom") or 1.12),
+            zoom=clamp_zoom(rkw.get("zoom")),
             motion=bool(rkw.get("motion", True)),
             lut=bool(rkw.get("lut", True)),
             grain=str(rkw.get("grain") or "weak"),
@@ -1508,12 +1584,20 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             brand_mode=str(rkw.get("brand_mode") or "off"),
             brand_logo=str(rkw.get("brand_logo") or "off"),
             vbitrate=str(rkw.get("vbitrate") or "8M"),
+            hardsub_blur=batch_config.as_bool(rkw.get("hardsub_blur"), True),
         )
         print(f"[auto] {job_id}: HOÀN TẤT toàn bộ pipeline ✓")
     except _Stopped:
         print(f"[auto] {job_id}: đã DỪNG theo yêu cầu")
     except Exception as e:  # noqa: BLE001
         print(f"[auto] {job_id} lỗi: {e}")
+        try:
+            m_err = Manifest(wd)
+            for _s in WIRED_STAGES:
+                if (m_err.stage(_s) or {}).get("status") == "running":
+                    m_err.mark_failed(_s, e)
+        except Exception:  # noqa: BLE001
+            pass
         if "chưa chọn giọng" in str(e):
             try:
                 m = Manifest(wd)
@@ -2336,7 +2420,7 @@ def api_queue_jobs_state():
     st = job_queue.queue_state()
     cur = st.get("current")
     st["current_detail"] = _queue_current_detail(cur)
-    # labels and details for pending queue (series/season từ job_queue.get_job_info — port V2)
+    # labels and details for pending queue
     labels = []
     queue_items = []
     for jid in (st.get("queue") or []):
@@ -2849,33 +2933,51 @@ def _run_stage(job_id: str, stage: str, target: str, force: bool,
             download_video(url, work_dir,
                            cookies_from_browser=req.get("cookies_from_browser"), fresh=force)
         elif stage == "asr":
-            # engine param = ASR engine (fun_asr_nano | sensevoice | …)
+            # engine param = ASR engine (nano_fa | hybrid_fa | fun_asr_nano | …)
             free_gpu_vram("trước ASR — nhường GPU")
             asr_eng = _resolve_asr_engine(work_dir, engine)
+
+            # Kiểm tra tự động chia Part cho video dài >= 3h khi bấm chạy riêng lẻ ASR
+            m = Manifest(work_dir)
+            req = m.data.get("request", {})
+            is_subjob = bool(req.get("parent_job_id"))
+            dur = float((m.stage("download") or {}).get("duration_sec") or 0.0)
+            if dur <= 0:
+                from render import _find_video
+                v_cand = _find_video(work_dir)
+                if v_cand and v_cand.exists():
+                    from split_parts import probe_duration
+                    dur = probe_duration(v_cand)
+
+            if dur >= 3.0 * 3600.0 and not is_subjob:
+                from split_parts import split_job_to_subjobs, merge_subjob_asr_to_parent
+                sp_res = split_job_to_subjobs(job_id)
+                sub_ids = sp_res.get("sub_job_ids") or []
+                if sub_ids:
+                    print(f"[stage asr] Video dài {dur/3600:.2f}h: tự động chạy ASR ({asr_eng}) theo {len(sub_ids)} part...", flush=True)
+                    if hasattr(m, "set_stage"):
+                        m.set_stage("asr", status="running", asr_engine=asr_eng)
+                    else:
+                        m.mark_running("asr")
+                        st = m.data.setdefault("stages", {}).setdefault("asr", {})
+                        st["asr_engine"] = asr_eng
+                        m.save()
+                    for sid in sub_ids:
+                        if _check_stopped(job_id):
+                            raise _Stopped()
+                        _run_stage(sid, "asr", target=target, force=force, engine=asr_eng)
+                    merge_subjob_asr_to_parent(job_id)
+                    return
+
             _run_engine(_asr_script(asr_eng), work_dir, *(["--force"] if force else []))
         elif stage == "translate":
-            # CASCADE RESET: Reset TTS & MUX de khong hien thi done cu
-            m_curr = Manifest(work_dir)
-            stg = m_curr.data.setdefault("stages", {})
-            if "tts" in stg and stg["tts"].get("status") == "done":
-                stg["tts"]["status"] = "pending"
-                stg["tts"]["cur_text"] = "Chờ bản dịch mới"
-            if "mux" in stg and stg["mux"].get("status") in ("done", "running"):
-                stg["mux"]["status"] = "pending"
-                stg["mux"]["cur_text"] = "Chờ lồng tiếng mới"
-            m_curr.save()
-            _run_translate_engine(work_dir, target=target, force=force)
+            run_translate(work_dir, target=target, force=force)
         elif stage == "tts":
-            m_curr = Manifest(work_dir)
-            tr_st = (m_curr.stage("translate") or {}).get("status")
-            if tr_st in ("running", "pending"):
-                print(f"[stage tts] CHẶN: translate đang '{tr_st}' -> không chạy tts song song", flush=True)
-                return
-            free_gpu_vram("trước TTS để nhường GPU")
+            free_gpu_vram("trước TTS — nhường GPU")
             eng = _resolve_tts_engine(work_dir, engine)
             v = _resolve_voice(work_dir, voice)
             if not v:
-                print(f"[stage tts] job {job_id}: chưa có giọng -> bỏ qua", flush=True)
+                print(f"[stage tts] job {job_id}: chưa có giọng -> bỏ qua")
                 return
             sp = _resolve_speed(work_dir, speed)
             _do_tts(work_dir, v, sp, eng, force)
@@ -2884,17 +2986,11 @@ def _run_stage(job_id: str, stage: str, target: str, force: bool,
             run_ocr(work_dir, force=force)
         elif stage == "separate":
             free_gpu_vram("trước tách nền")
-            run_separate(work_dir, force=force)
+            import importlib
+            import separate as _sep_mod
+            _sep_mod = importlib.reload(_sep_mod)
+            _sep_mod.run_separate(work_dir, force=force)
         elif stage == "mux":
-            m_curr = Manifest(work_dir)
-            tr_st = (m_curr.stage("translate") or {}).get("status")
-            tts_st = (m_curr.stage("tts") or {}).get("status")
-            if tr_st in ("running", "pending"):
-                print(f"[stage mux] CHẶN: translate đang '{tr_st}' -> không chạy mux song song", flush=True)
-                return
-            if tts_st in ("running", "pending"):
-                print(f"[stage mux] CHẶN: tts đang '{tts_st}' -> không chạy mux khi chưa lồng tiếng xong", flush=True)
-                return
             free_gpu_vram("trước render")
             qo = Manifest(work_dir).data.get("queue_opts") or {}
             _do_render(work_dir, force=force, **batch_config.render_kwargs(batch_config.resolve_job_opts(qo)))
@@ -2902,6 +2998,12 @@ def _run_stage(job_id: str, stage: str, target: str, force: bool,
         print(f"[stage {stage}] job {job_id}: đã DỪNG theo yêu cầu")
     except Exception as e:  # noqa: BLE001
         print(f"[stage {stage}] job {job_id} lỗi: {e}")
+        try:
+            m_err = Manifest(work_dir)
+            if (m_err.stage(stage) or {}).get("status") == "running":
+                m_err.mark_failed(stage, e)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _save_tts_voice(work_dir: Path, voice: str) -> None:
@@ -2961,7 +3063,7 @@ def _patch_tts_fields(work_dir: Path, **fields) -> None:
 
 
 def _job_cfg_opts(work_dir: Path) -> dict:
-    """Gộp opts + queue_opts (queue_opts thắng) — resolve voice/speed/engine."""
+    """Gộp opts + queue_opts (queue_opts thắng) — dùng khi resolve voice/speed/engine."""
     try:
         m = Manifest(work_dir)
         opts = dict(m.data.get("opts") or {})
@@ -2972,7 +3074,7 @@ def _job_cfg_opts(work_dir: Path) -> dict:
 
 
 def _resolve_voice(work_dir: Path, voice: str | None) -> str:
-    """Giọng: arg → stages.tts → tts_config → queue_opts/opts → list[0]."""
+    """Giọng: arg → stages.tts → tts_config → queue_opts/opts → list[0] (cuối cùng)."""
     if voice:
         _save_tts_voice(work_dir, voice)
         return voice
@@ -2988,6 +3090,7 @@ def _resolve_voice(work_dir: Path, voice: str | None) -> str:
                 return v
         except Exception:  # noqa: BLE001
             pass
+    # Part sau auto-split: queue_opts.voice đã copy từ parent nhưng stages.tts trống
     v = (_job_cfg_opts(work_dir).get("voice") or "").strip()
     if v:
         _save_tts_voice(work_dir, v)
@@ -3048,7 +3151,7 @@ def _resolve_speed(work_dir: Path, speed: float | None) -> float:
 TTS_ENGINES = ("vieneu", "omnivoice")
 TTS_ENGINE_DEFAULT = "vieneu"
 
-# ASR: Nano+Direct FA (SOTA chuẩn V2) | Hybrid | Nano | SenseVoice | Paraformer | FireRed
+# ASR: Nano+Direct FA (SOTA chuẩn mới) | Hybrid | Nano | SenseVoice | Paraformer | FireRed
 ASR_ENGINES = ("nano_fa", "hybrid_fa", "fun_asr_nano", "sensevoice", "paraformer_zh", "firered_asr")
 ASR_ENGINE_DEFAULT = "nano_fa"  # Fun-ASR-Nano + Direct Qwen3-ForcedAligner
 ASR_SCRIPTS = {
@@ -3127,42 +3230,6 @@ def _save_asr_engine(work_dir: Path, engine: str) -> None:
     _patch_asr_fields(work_dir, asr_engine=engine, engine=engine)
 
 
-
-def _run_translate_engine(
-    work_dir: Path,
-    batch: int | None = None,
-    target: str | None = None,
-    force: bool = False,
-    model: str | None = None,
-    mode: str | None = None,
-    review_only: bool = False,
-    review_force: bool = False,
-) -> None:
-    """Chạy stage dịch ở TIẾN TRÌNH RIÊNG (subprocess) giống như ASR và TTS.
-    
-    Tách ra subprocess:
-    - Web server hoàn toàn rảnh GIL -> API và UI siêu mượt, không bao giờ bị khựng.
-    - Dễ dàng stop/kill tiến trình ngay lập tức khi người dùng bấm Dừng.
-    - Bộ nhớ và VRAM tự động giải phóng sạch sẽ khi tiến trình kết thúc.
-    """
-    args = []
-    if batch:
-        args.extend(["--batch", str(batch)])
-    if target:
-        args.extend(["--target", str(target)])
-    if force:
-        args.append("--force")
-    if model:
-        args.extend(["--model", str(model)])
-    if mode:
-        args.extend(["--mode", str(mode)])
-    if review_only:
-        args.append("--review")
-    if review_force:
-        args.append("--review-force")
-    _run_engine("translate.py", work_dir, *args)
-
-
 def _resolve_asr_engine(work_dir: Path, engine: str | None) -> str:
     if engine in ASR_ENGINES:
         _save_asr_engine(work_dir, engine)
@@ -3213,16 +3280,20 @@ def _do_tts(work_dir: Path, voice: str, speed: float, engine: str, force: bool):
         pass
     print(f"[tts] _do_tts START job={work_dir.name} engine={engine} voice={voice} force={force}",
           flush=True)
-    run_clone_tts(work_dir, engine, voice, speed=speed, force=force)
+    import importlib as _imp_tts
+    import clone_tts as _clone_tts_mod
+    _clone_tts_mod = _imp_tts.reload(_clone_tts_mod)
+    _clone_tts_mod.run_clone_tts(work_dir, engine, voice, speed=speed, force=force)
 
 
 def _do_render(work_dir: Path, force: bool = True, audio_mode: str = "voice_bgm",
                voice_vol: float = 0.2, orig_vol: float = 0.6, add_sub: bool = True,
                fit: bool = True, resolution: str = "source", flip: str = "",
-               zoom: float = 1.12, motion: bool = True, lut: bool = True,
+               zoom: float | str = 1.12, motion: bool = True, lut: bool = True,
                grain: str = "weak", brand: bool = False, brand_text: str = "",
                frame: str = "off", brand_mode: str = "off", brand_logo: str = "off",
-               vbitrate: str = "8M", speed_factor: float = 1.0):
+               vbitrate: str = "8M", speed_factor: float = 1.0,
+               hardsub_blur: bool = True):
     """Ghép giọng (assemble nếu chưa) rồi render video localize (che+sub+trộn nền).
 
     fit=True: khớp time (nén câu lố cho khớp phim). fit=False: giọng tốc độ tự nhiên
@@ -3277,7 +3348,12 @@ def _do_render(work_dir: Path, force: bool = True, audio_mode: str = "voice_bgm"
         # Video dài (>30 phút): assemble() naive KHÔNG ghi file — luôn dùng assemble_fit.
         tts_json = work_dir / "tts.json"
         if tts_json.exists():
-            from assemble import assemble, assemble_fit, NAIVE_MAX_SEC
+            import importlib as _imp_asm
+            import assemble as _asm_mod
+            _asm_mod = _imp_asm.reload(_asm_mod)
+            assemble, assemble_fit, NAIVE_MAX_SEC = (
+                _asm_mod.assemble, _asm_mod.assemble_fit, _asm_mod.NAIVE_MAX_SEC
+            )
             # Ước lượng độ dài từ clip cuối trong tts.json
             long_job = True
             try:
@@ -3333,11 +3409,11 @@ def _do_render(work_dir: Path, force: bool = True, audio_mode: str = "voice_bgm"
         _render_mod.run_render(
             work_dir, force=force, audio_mode=audio_mode, voice_vol=voice_vol,
             orig_vol=orig_vol, add_sub=add_sub, resolution=resolution or "source",
-            flip=flip or "", zoom=zoom, motion=motion, lut=lut, grain=grain,
+            flip=flip or "", zoom=clamp_zoom(zoom), motion=motion, lut=lut, grain=grain,
             brand=bool(brand), brand_text=(brand_text or None),
             brand_mode=(brand_mode or None), brand_logo=(brand_logo or None),
             frame=(frame or None), vbitrate=(vbitrate or "8M"),
-            speed_factor=speed_factor,
+            speed_factor=speed_factor, hardsub_blur=hardsub_blur,
         )
         # Nếu run_render skip (done) sau khi ta đã mark_running → trả lại done
         m_chk = Manifest(work_dir)
@@ -3379,44 +3455,13 @@ def run_stage(job_id: str, stage: str, force: bool = False, voice: str | None = 
         return JSONResponse({"error": "chưa tải video xong"}, status_code=400)
     if stage == "separate" and not _find_video(work_dir):
         return JSONResponse({"error": "chưa tải video xong"}, status_code=400)
-    # BỘ QUY TẮC BẢO VỆ PIPELINE V4: Khóa tuần tự nghiêm ngặt (Sequential Stage Guard)
-    tr_status = (m.stage("translate") or {}).get("status")
-    tts_status = (m.stage("tts") or {}).get("status")
-    asr_status = (m.stage("asr") or {}).get("status")
-
     if stage == "tts":
-        if tr_status in ("running", "pending"):
-            return JSONResponse({"error": f"CẤM CHẠY: Không thể Lồng tiếng khi bước Dịch đang ở trạng thái '{tr_status}'"}, status_code=409)
         if not (work_dir / "script.json").exists():
             return JSONResponse({"error": "chưa dịch xong (thiếu script.json)"}, status_code=400)
         if not (voice or (m.stage("tts") or {}).get("voice") or list_clone_voices()):
             return JSONResponse({"error": "chưa có giọng clone — thêm giọng trước"}, status_code=400)
-
-    if stage == "mux":
-        if tr_status in ("running", "pending"):
-            return JSONResponse({"error": f"CẤM CHẠY: Không thể Ghép video khi bước Dịch đang ở trạng thái '{tr_status}'"}, status_code=409)
-        if tts_status in ("running", "pending"):
-            return JSONResponse({"error": f"CẤM CHẠY: Không thể Ghép video khi bước Lồng tiếng đang ở trạng thái '{tts_status}'"}, status_code=409)
-        if not ((work_dir / "tts.json").exists() or m.data.get("dub")):
-            return JSONResponse({"error": "chưa có audio (tạo giọng / nhập audio trước)"}, status_code=400)
-
-    # BẬC THANG CASCADE RESET: Khi chạy lại stage N, tự động reset các stage sau về pending
-    if stage == "translate":
-        stages_data = m.data.setdefault("stages", {})
-        if "tts" in stages_data and stages_data["tts"].get("status") == "done":
-            stages_data["tts"]["status"] = "pending"
-            stages_data["tts"]["cur_text"] = "Chờ bản dịch mới"
-        if "mux" in stages_data:
-            stages_data["mux"]["status"] = "pending"
-            stages_data["mux"]["cur_text"] = "Chờ hoàn tất lồng tiếng"
-        m.save()
-    elif stage == "asr":
-        stages_data = m.data.setdefault("stages", {})
-        for s_after in ("translate", "tts", "mux"):
-            if s_after in stages_data:
-                stages_data[s_after]["status"] = "pending"
-                stages_data[s_after]["cur_text"] = "Chờ bóc chữ mới"
-        m.save()
+    if stage == "mux" and not ((work_dir / "tts.json").exists() or m.data.get("dub")):
+        return JSONResponse({"error": "chưa có audio (tạo giọng / nhập audio trước)"}, status_code=400)
 
     target = m.data.get("request", {}).get("target", "Tiếng Việt")
     # Chặn double-click / gửi lại khi đang chạy
@@ -3572,7 +3617,7 @@ def translate_fill(job_id: str):
     def _run():
         try:
             # mode=batch: vá chắc, không oneshot sót
-            _run_translate_engine(work_dir, batch=25, target=target, mode="batch")
+            _tr.run_translate(work_dir, 25, target, False, None, "batch")
         finally:
             _release_stage(job_id, "translate")
     _gpu.submit(_run)
@@ -3787,7 +3832,7 @@ def run_all(job_id: str, req: "RunAllReq"):
     brand_on = bool(getattr(req, "brand", False)) or brand_mode not in ("off", "", "0", "false")
     render_kw = {
         "flip": (getattr(req, "flip", None) or "").strip(),
-        "zoom": float(getattr(req, "zoom", None) or 1.12),
+        "zoom": clamp_zoom(getattr(req, "zoom", None)),
         "motion": bool(getattr(req, "motion", True)),
         "lut": bool(getattr(req, "lut", True)),
         "grain": (getattr(req, "grain", None) or "weak"),
@@ -3797,7 +3842,15 @@ def run_all(job_id: str, req: "RunAllReq"):
         "brand_logo": (getattr(req, "brand_logo", None) or "off"),
         "frame": (getattr(req, "frame", None) or "off"),
         "vbitrate": (getattr(req, "vbitrate", None) or "8M"),
+        "hardsub_blur": batch_config.as_bool(getattr(req, "hardsub_blur", True), True),
     }
+    try:
+        m_opts = Manifest(work_dir)
+        qo = m_opts.data.setdefault("queue_opts", {})
+        qo["hardsub_blur"] = render_kw["hardsub_blur"]
+        m_opts.save()
+    except Exception:  # noqa: BLE001
+        pass
 
     def _wrapped_all():
         # Claim __all__ giữ đến hết _auto_gpu (release trong _auto_pipeline/_gpu_wrapped)
@@ -3855,12 +3908,13 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
             "ocr": bool(opts.get("ocr")), "fit": bool(opts.get("fit", True)),
             "resolution": str(opts.get("resolution") or "source"),
             "translate_mode": translate_mode,
-            "zoom": float(opts.get("zoom") or 1.12),
+            "zoom": clamp_zoom(opts.get("zoom")),
             "motion": bool(opts.get("motion", True)),
             "lut": bool(opts.get("lut", True)),
             "grain": str(opts.get("grain") or "weak"),
             "flip": str(opts.get("flip") or ""),
             "vbitrate": str(opts.get("vbitrate") or "8M"),
+            "hardsub_blur": batch_config.as_bool(opts.get("hardsub_blur"), True),
         }
         m_stamp.save()
     except Exception as e:  # noqa: BLE001
@@ -3888,7 +3942,7 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
     brand_on = bool(opts.get("brand")) or brand_mode not in ("off", "", "0", "false")
     render_kw = {
         "flip": str(opts.get("flip") or "").strip(),
-        "zoom": float(opts.get("zoom") or 1.12),
+        "zoom": clamp_zoom(opts.get("zoom")),
         "motion": bool(opts.get("motion", True)),
         "lut": bool(opts.get("lut", True)),
         "grain": str(opts.get("grain") or "weak"),
@@ -3898,6 +3952,7 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
         "brand_logo": str(opts.get("brand_logo") or "off"),
         "frame": str(opts.get("frame") or "off"),
         "vbitrate": str(opts.get("vbitrate") or "8M"),
+        "hardsub_blur": batch_config.as_bool(opts.get("hardsub_blur"), True),
     }
 
     try:
@@ -3942,75 +3997,30 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
                 return "stopped", "đã dừng sau khi tải nguồn"
             return _failed("tải nguồn xong nhưng không tìm thấy video")
 
-        # Auto-detect duration → chia part (phim ≥ auto_split_min_h) trước ASR/GPU
-        try:
-            bc = batch_config.load()
-            if bool(bc.get("auto_split", True)):
-                from split_parts import maybe_auto_split_job
-                sp = maybe_auto_split_job(
-                    job_id,
-                    work_root=WORK_ROOT,
-                    enabled=True,
-                    target_hours=float(bc.get("auto_split_hours") or 2.5),
-                    min_hours=float(bc.get("auto_split_min_h") or 3.0),
-                )
-                if sp.get("split") and sp.get("sub_job_ids"):
-                    sub_ids = list(sp["sub_job_ids"])  # đã p01..pN
-                    job_queue.queue_add(sub_ids, opts=opts, skip_done=True, sort_first=False)
-                    n = sp.get("total_parts") or len(sub_ids)
-                    hrs = sp.get("duration_hours")
-                    msg = (
-                        f"auto-split {hrs}h → {n} part (Phần 1→{n}), "
-                        f"chạy lần lượt rồi ghép output.mp4: {', '.join(sub_ids)}"
-                    )
-                    print(f"[auto_split] queue {job_id}: {msg}", flush=True)
-                    try:
-                        # Parent chờ part — không để stage early=running/failed (UI báo lỗi giả)
-                        def _mark_parent_waiting(d: dict) -> bool:
-                            stages = d.setdefault("stages", {})
-                            changed = False
-                            for name in ("asr", "translate", "tts", "mux"):
-                                st = stages.setdefault(name, {})
-                                if st.get("status") in ("running", "failed", None, ""):
-                                    st["status"] = "pending"
-                                    st.pop("error", None)
-                                    st.pop("last_error", None)
-                                    st["cur_text"] = (
-                                        f"Chờ {n} part render xong rồi ghép Full"
-                                    )
-                                    stages[name] = st
-                                    changed = True
-                            si = d.setdefault("split_info", {})
-                            if si.get("status") != "split_done":
-                                si["status"] = "split_done"
-                                changed = True
-                            return changed
-                        Manifest(work_dir).update(_mark_parent_waiting)
-                    except Exception:  # noqa: BLE001
-                        pass
-                    # "split" = thành công ủy quyền cho part (không phải failed)
-                    return "split", msg
-        except Exception as e_as:  # noqa: BLE001
-            print(f"[auto_split] queue {job_id} bỏ qua (chạy nguyên job): {e_as}", flush=True)
-
         done_event = threading.Event()
         error: list[Exception] = []
 
         def _gpu_job() -> None:
             try:
-                _auto_gpu(
-                    job_id,
-                    target,
-                    audio_mode,
-                    voice_vol,
-                    orig_vol,
-                    use_ocr,
-                    fit,
-                    resolution,
-                    translate_mode,
-                    render_kw,
+                is_handled = _check_and_run_auto_split_parts(
+                    job_id, target, audio_mode, voice_vol, orig_vol, use_ocr,
+                    fit, resolution, translate_mode, render_kw,
                     asr_engine=asr_engine,
                 )
+                if not is_handled:
+                    _auto_gpu(
+                        job_id,
+                        target,
+                        audio_mode,
+                        voice_vol,
+                        orig_vol,
+                        use_ocr,
+                        fit,
+                        resolution,
+                        translate_mode,
+                        render_kw,
+                        asr_engine=asr_engine,
+                    )
             except Exception as exc:  # noqa: BLE001
                 error.append(exc)
             finally:
@@ -4024,27 +4034,8 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
             return "stopped", "đã dừng"
         if error:
             return _failed(f"pipeline lỗi: {error[0]}")
-        if job_queue.is_wired_done(work_dir):
-            try:
-                bc2 = batch_config.load()
-                if bool(bc2.get("auto_merge", True)):
-                    from split_parts import try_auto_merge_parent
-                    mr = try_auto_merge_parent(job_id, work_root=WORK_ROOT, enabled=True)
-                    if mr and mr.get("ok") and mr.get("ready"):
-                        print(
-                            f"[auto_merge] {job_id}: full → {mr.get('output_path')} "
-                            f"({mr.get('size_mb')} MB, {mr.get('n_parts')} part)",
-                            flush=True,
-                        )
-            except Exception as e_mg:  # noqa: BLE001
-                print(f"[auto_merge] {job_id}: {e_mg}", flush=True)
-            try:
-                import auto_publisher
-                threading.Thread(target=auto_publisher.publish_job, args=(job_id,), daemon=True).start()
-            except Exception as e_pub:
-                print(f"[auto-publish] Lỗi trigger tự động: {e_pub}", flush=True)
-            return "done", "hoàn tất"
-        # Parent đã merge Full nhưng stage asr/… còn failed/pending (bug cũ) → heal
+        # Parent sau auto-split+merge: merge đánh done đủ stage → is_wired_done.
+        # Nếu chỉ mux/output xong (bản cũ) thì heal các stage còn thiếu rồi coi là done.
         if not job_queue.is_wired_done(work_dir):
             try:
                 m_fix = Manifest(work_dir)
@@ -4075,7 +4066,12 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
             except Exception as e_heal:  # noqa: BLE001
                 print(f"[auto-split] heal parent stages {job_id}: {e_heal}", flush=True)
         if job_queue.is_wired_done(work_dir):
-            return "done", "hoàn tất (split parent healed)"
+            try:
+                import auto_publisher
+                auto_publisher.enqueue_publish(job_id)
+            except Exception as e_pub:
+                print(f"[auto-publish] Lỗi trigger tự động: {e_pub}", flush=True)
+            return "done", "hoàn tất"
         held = (Manifest(work_dir).data.get("agent") or {}).get("held_at")
         if held:
             return "held", f"dừng chờ duyệt ({held}) — duyệt xong gọi «chạy tiếp»"
@@ -4275,6 +4271,7 @@ def _promote_asr_source(work_dir: Path, source: str) -> dict:
     if eng_hint:
         fields["asr_engine"] = eng_hint
         fields["engine"] = eng_hint
+    # Đọc nguồn cũ TRƯỚC khi patch — cùng source+n thì không invalidate (chống TTS lại)
     try:
         m_prev = Manifest(work_dir)
         prev_asr = (m_prev.data.get("stages") or {}).get("asr") or {}
@@ -4310,7 +4307,8 @@ def _invalidate_translate_for_asr(work_dir: Path, asr_source: str, n_asr: int) -
     except Exception:  # noqa: BLE001
         rows = []
     n_script = len(rows) if isinstance(rows, list) else 0
-    # luôn stale nếu đổi nguồn (kể cả cùng số câu — cắt ZH khác)
+    # Caller (_promote) đã chặn cùng nguồn; tới đây = đổi nguồn thật → stale
+    # (kể cả cùng số câu — cắt ZH có thể khác)
     bak = work_dir / "script.json.bak_before_asr_select"
     try:
         shutil.copy2(script, bak)
@@ -5614,19 +5612,21 @@ def _translate_batch_size() -> int:
 
 def _translate_flow(work_dir: Path, target: str, model: str | None,
                     review_model: str | None, review_only: bool,
-                    mode: str | None = None):
+                    mode: str | None = None, force: bool = False):
     """Luồng dịch: (tùy chọn) DỊCH NHÁP rồi (tùy chọn) SOÁT lại lượt 2.
 
     - review_only=True: chỉ soát bản dịch có sẵn (bằng review_model).
     - review_model có, review_only=False: DỊCH 2 LƯỢT (nháp bằng model, soát bằng
       review_model — vd gemini nháp nhanh -> minimax soát chính xác).
-    - còn lại: dịch 1 lượt bằng model."""
+    - còn lại: dịch 1 lượt bằng model.
+    - force=True: xoá script.json rồi dịch lại từ đầu (chỉ khi UI xác nhận «Dịch LẠI»).
+    """
     try:
         batch = _translate_batch_size()
         if not review_only:
-            _run_translate_engine(work_dir, batch=batch, target=target, force=True, model=model or None, mode=mode)
+            run_translate(work_dir, batch, target, bool(force), model or None, mode)
         if review_only or review_model:
-            _run_translate_engine(work_dir, batch=min(40, max(batch, 20)), target=target, review_only=True, model=review_model or None)
+            run_review(work_dir, min(40, max(batch, 20)), target, review_model or None)
     except Exception as e:  # noqa: BLE001
         print(f"[translate flow] job {work_dir.name} lỗi: {e}")
 
@@ -5645,6 +5645,9 @@ def retranslate_job(job_id: str, req: TranslateReq):
     busy = _busy_response(job_id, work_dir)
     if busy:
         return busy
+    # Bắt buộc xoá .stop cũ (mux/stop trước đó) — nếu không, worker vừa vào đã dừng,
+    # UI kẹt «force: dịch lại» / script.json 404 (88d80ba0be0f 2026-11-06).
+    _clear_stop(job_id)
     if not _claim_stage(job_id, "translate"):
         return JSONResponse({"error": "đã nhận lệnh trước đó — không gửi trùng"}, status_code=409)
     # Đánh running NGAY (trước hàng _gpu) — JOB_WORKERS=1 hay xếp sau fill/TTS
@@ -5673,13 +5676,29 @@ def retranslate_job(job_id: str, req: TranslateReq):
 
     def _run_translate():
         try:
+            # Clear lại ngay trước khi worker thật sự chạy (sau xếp hàng GPU),
+            # phòng .stop xuất hiện trong lúc chờ queue.
+            _clear_stop(job_id)
+            if job_id in _STOP_JOBS:
+                print(f"[translate] {job_id}: đã DỪNG — bỏ qua worker", flush=True)
+                try:
+                    m_stop = Manifest(work_dir)
+                    st_stop = m_stop.data.setdefault("stages", {}).setdefault("translate", {})
+                    if st_stop.get("status") == "running":
+                        st_stop["status"] = "pending"
+                        st_stop["cur_text"] = "đã dừng trước khi worker chạy"
+                        st_stop["updated_at"] = time.time()
+                        m_stop.save()
+                except Exception:  # noqa: BLE001
+                    pass
+                return
             _translate_flow(work_dir, target, req.model, req.review_model,
-                            req.review_only, req.mode)
+                            req.review_only, req.mode, force=bool(req.force))
         finally:
             _release_stage(job_id, "translate")
     _gpu.submit(_run_translate)
     return {"started": True, "model": req.model, "review_model": req.review_model,
-            "mode": req.mode, "review_only": req.review_only,
+            "mode": req.mode, "review_only": req.review_only, "force": bool(req.force),
             "batch": _translate_batch_size()}
 
 
@@ -5695,16 +5714,26 @@ def mux_job(job_id: str, req: MuxReq):
     if busy:
         return busy
     _clear_stop(job_id)
+    hs_blur = batch_config.as_bool(getattr(req, "hardsub_blur", True), True)
+    try:
+        m_opts = Manifest(work_dir)
+        qo = m_opts.data.setdefault("queue_opts", {})
+        qo["hardsub_blur"] = hs_blur
+        m_opts.save()
+    except Exception:  # noqa: BLE001
+        pass
     res = _submit_claimed(
         _gpu, job_id, "mux", _do_render, work_dir, True, req.audio_mode, req.voice_vol, req.orig_vol,
         req.add_sub, req.fit, req.resolution or "source", (req.flip or "").strip(),
-        float(req.zoom or 1.12), bool(req.motion), bool(req.lut),
+        clamp_zoom(req.zoom), bool(req.motion), bool(req.lut),
         (req.grain or "weak"), bool(getattr(req, "brand", False)),
         (getattr(req, "brand_text", None) or ""),
         (getattr(req, "frame", None) or "off"),
         (getattr(req, "brand_mode", None) or "off"),
         (getattr(req, "brand_logo", None) or "off"),
-        (getattr(req, "vbitrate", None) or "8M"))
+        (getattr(req, "vbitrate", None) or "8M"),
+        1.0,  # speed_factor
+        hs_blur)
     return res or {"started": True}
 
 
@@ -5731,35 +5760,22 @@ def assemble_job(job_id: str, fit: bool = True, max_speed: float = 1.0):
 
 
 @app.get("/api/jobs/{job_id}/split-plan")
-def get_split_plan(job_id: str, target_hours: float | None = None):
-    """Xem trước kế hoạch chia part + cờ will_auto_split theo batch_config."""
+def get_split_plan(job_id: str, target_hours: float = 2.5):
+    """Xem trước kế hoạch chia part thông minh cho video dài (trước khi chia)."""
     work_dir = WORK_ROOT / job_id
     video = _find_video(work_dir)
     if not video or not video.exists():
         return JSONResponse({"error": "chưa có video nguồn"}, status_code=400)
-    from split_parts import MIN_SPLIT_HOURS, compute_smart_plan, probe_duration
+    from split_parts import compute_smart_plan, probe_duration
     try:
-        bc = batch_config.load()
-        th = float(target_hours if target_hours is not None else (bc.get("auto_split_hours") or 2.5))
-        min_h = float(bc.get("auto_split_min_h") or MIN_SPLIT_HOURS)
         dur = probe_duration(video)
-        plan = compute_smart_plan(video, target_hours=th)
-        will = bool(bc.get("auto_split", True)) and dur >= min_h * 3600.0
+        plan = compute_smart_plan(video, target_hours=target_hours)
         return {
             "job_id": job_id,
             "duration_sec": dur,
             "duration_hours": round(dur / 3600.0, 2),
             "total_parts": len(plan),
             "parts": plan,
-            "auto_split_enabled": bool(bc.get("auto_split", True)),
-            "auto_split_min_h": min_h,
-            "auto_split_hours": th,
-            "will_auto_split": will,
-            "message": (
-                f"Xếp hàng/run-all sẽ TỰ chia {len(plan)} part (~{th}h/part)"
-                if will else
-                f"Dưới ngưỡng {min_h}h hoặc auto_split tắt — chạy 1 job"
-            ),
         }
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -5767,20 +5783,22 @@ def get_split_plan(job_id: str, target_hours: float | None = None):
 
 @app.post("/api/jobs/{job_id}/split-parts")
 def api_split_job_parts(job_id: str, target_hours: float = 2.5):
-    """Chia video dài thành các sub-jobs (Part 1, Part 2...) chạy pipeline độc lập chống lệch time."""
+    """Chia video dài thành các sub-jobs (Part 1, Part 2...) để chạy pipeline độc lập chống lệch time."""
     from split_parts import split_job_to_subjobs
     try:
-        return split_job_to_subjobs(job_id, target_hours=target_hours, work_root=WORK_ROOT)
+        res = split_job_to_subjobs(job_id, target_hours=target_hours, work_root=WORK_ROOT)
+        return res
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/api/jobs/{job_id}/merge-parts")
 def api_merge_job_parts(job_id: str):
-    """Ghép các sub-jobs đã render xong thành output_full.mp4 (concat lossless)."""
+    """Ghép các sub-jobs đã render hoàn chỉnh thành bản Full output_full.mp4 (lossless concat 30s)."""
     from split_parts import merge_job_parts
     try:
-        return merge_job_parts(job_id, work_root=WORK_ROOT)
+        res = merge_job_parts(job_id, work_root=WORK_ROOT)
+        return res
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -5910,6 +5928,7 @@ from routes_ui import (  # noqa: E402,F401
     find_index,
     index,
     ui3,
+    ui4,
     ui_hongguo,
     ui_hongguo2,
 )
@@ -5994,17 +6013,6 @@ from routes_agent import (  # noqa: E402,F401
 app.include_router(routes_ui.router)
 app.include_router(routes_hg.router)
 app.include_router(routes_agent.router)
-try:
-    import routes_films
-    app.include_router(routes_films.router)
-except Exception as _e_films:
-    print(f"[warning] Khong nap duoc routes_films: {_e_films}")
-
-try:
-    import routes_uploader_settings
-    app.include_router(routes_uploader_settings.router)
-except Exception as _e_up:
-    print(f"[warning] Khong nap duoc routes_uploader_settings: {_e_up}")
 
 
 @app.on_event("startup")
@@ -6018,16 +6026,6 @@ def _start_agent_watch():
             print("[startup] Agent watcher OFF (set AGENT_WATCH=1 để bật)")
     except Exception as e:  # noqa: BLE001
         print(f"[startup] agent watch lỗi: {e}")
-
-
-@app.on_event("startup")
-def _start_auto_publisher():
-    try:
-        import auto_publisher
-        auto_publisher.start_worker()
-        print("[startup] Auto-publisher worker started")
-    except Exception as e:  # noqa: BLE001
-        print(f"[startup] auto-publisher lỗi: {e}")
 
 
 @app.get("/api/models")
@@ -6059,7 +6057,7 @@ if __name__ == "__main__":
     try:
         msvcrt.locking(_inst_lock.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
-        print(f"Đã có server PinelineV4 khác giữ cổng {args.port} — thoát.", flush=True)
+        print(f"Đã có server PinelineV2 khác giữ cổng {args.port} — thoát.", flush=True)
         raise SystemExit(1)
 
     print(f"Mở http://{args.host}:{args.port}")

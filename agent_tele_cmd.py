@@ -1,6 +1,6 @@
 """
 Sidecar: Telegram lệnh + Auto-pilot + HTTP :8802
-KHÔNG restart Pineline server — chỉ gọi API server (mặc định :8804).
+KHÔNG restart Pineline server — chỉ gọi API :8801.
 
 Chạy:  python agent_tele_cmd.py
   hoặc  run_tele_cmd.bat
@@ -66,8 +66,7 @@ import batch_config  # noqa: E402
 import film_db  # noqa: E402
 import agent_hongguo as hg_agent  # noqa: E402
 
-_port = (os.getenv("PORT") or "8804").strip()
-BASE = (os.getenv("PINELINE_BASE") or f"http://127.0.0.1:{_port}").strip().rstrip("/")
+BASE = (os.getenv("PINELINE_BASE") or "http://127.0.0.1:8801").strip().rstrip("/")
 CTRL_HOST = os.getenv("AUTOPILOT_HOST") or "127.0.0.1"
 CTRL_PORT = int(os.getenv("AUTOPILOT_PORT") or "8802")
 TICK_SEC = max(30, int(os.getenv("AUTOPILOT_TICK_SEC") or "90"))
@@ -775,7 +774,7 @@ def handle_command(text: str, uid: str = "") -> str:
         import subprocess
         flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         subprocess.Popen([sys.executable, str(ROOT / "restart_server.py")], cwd=str(ROOT), creationflags=flags)
-        return "Đang restart server :8804 — hàng chờ + Auto-pilot được giữ, báo lại khi xong."
+        return "Đang restart server :8801 — hàng chờ + Auto-pilot được giữ, báo lại khi xong."
 
     if cmd in ("/status", "status"):
         return format_status(status_brief(BASE))
@@ -870,9 +869,9 @@ def _fetch_poster_bytes(name: str) -> bytes | None:
         return None
     import urllib.request
     import urllib.parse
-    # 1. Thử gọi /api/hg/poster của server Pineline (PORT/BASE)
+    # 1. Thử gọi /api/hg/poster của server Pineline 8801
     try:
-        url = f"{BASE}/api/hg/poster?name={urllib.parse.quote(name)}"
+        url = f"http://127.0.0.1:8801/api/hg/poster?name={urllib.parse.quote(name)}"
         req = urllib.request.Request(url, headers={"User-Agent": "Pineline"})
         with urllib.request.urlopen(req, timeout=5) as r:
             data = r.read()
@@ -915,7 +914,7 @@ class CtrlHandler(BaseHTTPRequestHandler):
             return False
 
     def _blocked(self) -> bool:
-        """UI server (:8804) gọi sang đây cross-origin → chỉ cho origin localhost; trang web lạ
+        """UI :8801 gọi sang đây cross-origin → chỉ cho origin localhost; trang web lạ
         (Origin/Referer khác máy) hoặc Host lạ (DNS rebinding) → 403."""
         path = self.path.split("?", 1)[0]
         # Cho phép các endpoint OAuth callback từ Google / Canva chuyển hướng về
@@ -995,6 +994,18 @@ class CtrlHandler(BaseHTTPRequestHandler):
                 return
             self._json(200, {"ok": True, "stats": film_db.stats(), "films": rows})
             return
+        # Mergeable / merge-parts trước catch-all /films/{id}
+        try:
+            import films_merge_api as _fma
+            hit = _fma.dispatch("GET", path)
+            if hit is not None:
+                code, payload = hit
+                self._json(code, payload)
+                return
+        except Exception as e:  # noqa: BLE001
+            if path in ("/films/mergeable",):
+                self._json(500, {"ok": False, "error": f"films_merge: {e}"})
+                return
         if path.startswith("/films/") and path != "/films/ui":
             d = film_db.get(path.rsplit("/", 1)[1])
             self._json(200 if d else 404, {"ok": bool(d), "film": d})
@@ -1091,6 +1102,27 @@ class CtrlHandler(BaseHTTPRequestHandler):
             import llm
             self._json(200, llm.list_available_models())
             return
+        if path == "/api/hg/poster":
+            # Proxy poster → :8801 / Hongguo / local (Films UI trên :8802)
+            from urllib.parse import parse_qs, urlsplit
+            qs = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+            name = (qs.get("name") or "").strip()
+            data = _fetch_poster_bytes(name) if name else None
+            if not data:
+                self._json(404, {"ok": False, "error": "poster not found"})
+                return
+            ctype = "image/jpeg"
+            if data[:8] == b"\x89PNG\r\n\x1a\n":
+                ctype = "image/png"
+            elif data[:4] == b"RIFF":
+                ctype = "image/webp"
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if path == "/test-channel/batch-progress":
             import test_channel
             self._json(200, test_channel.get_batch_progress())
@@ -1111,6 +1143,21 @@ class CtrlHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path in ("/hongguo", "/hongguo2", "/v5-map"):
+            # UI Hongguo / map chạy trên Pineline :8801 — redirect (tránh JSON not found)
+            loc = f"{BASE}{path}"
+            body = (
+                f'<!doctype html><meta charset="utf-8">'
+                f'<meta http-equiv="refresh" content="0;url={loc}">'
+                f'<p>Chuyển tới <a href="{loc}">{loc}</a></p>'
+            ).encode("utf-8")
+            self.send_response(302)
+            self.send_header("Location", loc)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -1248,6 +1295,33 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
             import auto_publisher
             self._json(200, auto_publisher.get_auto_state())
             return
+        if path == "/api/hg/library/watchlist":
+            try:
+                from urllib.parse import parse_qs, urlsplit
+                qs = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+                include_deleted = str(qs.get("include_deleted", "1")).lower() not in ("0", "false", "no")
+                rows = film_db.list_hg_watchlist(include_deleted=include_deleted)
+                self._json(200, {
+                    "ok": True,
+                    "n": len(rows),
+                    "items": rows,
+                    "on_disk": sum(1 for r in rows if int(r.get("on_disk") or 0) == 1),
+                    "deleted": sum(1 for r in rows if int(r.get("on_disk") or 0) == 0),
+                })
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        # Settings + Uploader API (Films UI)
+        try:
+            import uploader_settings_api as _usa
+            hit = _usa.dispatch("GET", path)
+            if hit is not None:
+                code, payload = hit
+                self._json(code, payload)
+                return
+        except Exception as e:  # noqa: BLE001
+            self._json(500, {"ok": False, "error": f"uploader_settings: {e}"})
+            return
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self):  # noqa: N802
@@ -1308,6 +1382,43 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
             if r.get("job_ids"):
                 tg_send(f"Thêm tay từ tab thư viện: {len(r['job_ids'])} job\n" + "\n".join(r.get("titles") or [])[:1500])
             self._json(200, r)
+            return
+        if path == "/api/hg/library/seasons/discover":
+            try:
+                import importlib
+                import hongguo_bridge as hg
+                hg = importlib.reload(hg)
+                try:
+                    max_cores = int(body.get("max_cores") or 16)
+                except (TypeError, ValueError):
+                    max_cores = 16
+                expand = bool(body.get("expand") or False)
+                self._json(200, hg.discover_new_seasons(max_cores=max_cores, expand=expand))
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/hg/translate-titles":
+            # Dịch thô Trung→Việt cho Films UI Mùa mới (local title_mt, cùng :8801)
+            try:
+                import importlib
+                import title_mt as tmt
+                tmt = importlib.reload(tmt)
+                items = list(body.get("items") or [])
+                self._json(200, tmt.translate_titles(items))
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/hg/submit":
+            try:
+                import requests as _rq
+                r = _rq.post(BASE + "/api/hg/submit", json=body, timeout=120)
+                try:
+                    data = r.json()
+                except Exception:  # noqa: BLE001
+                    data = {"ok": False, "error": r.text[:300]}
+                self._json(r.status_code if r.status_code < 500 else 200, data)
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
             return
         if path == "/library/cut-sample":
             import lib_check
@@ -1418,6 +1529,20 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
             res = test_channel.start_batch_test(names=names, limit=limit, auto_delete=auto_delete, title_vi_map=title_vi_map)
             self._json(200 if res.get("ok") else 400, res)
             return
+        if path == "/test-channel/batch-stop":
+            # Không reload — giữ cùng BATCH_STATE với worker đang chạy
+            import test_channel
+            if not hasattr(test_channel, "stop_batch_test"):
+                # process chưa nạp code mới → đánh dấu cancel trực tiếp nếu có
+                st = getattr(test_channel, "BATCH_STATE", None)
+                if isinstance(st, dict) and st.get("running"):
+                    st["cancel"] = True
+                    self._json(200, {"ok": True, "stopped": True, "message": "Đã gửi lệnh dừng (legacy)."})
+                else:
+                    self._json(200, {"ok": True, "stopped": False, "message": "Không có tiến trình / chưa nạp stop."})
+                return
+            self._json(200, test_channel.stop_batch_test())
+            return
         if path == "/test-channel/recheck-one":
             import lib_check
             import test_channel
@@ -1470,11 +1595,23 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
                 job_ids = body.get("job_ids") or []
                 custom_title_vi = body.get("title_vi")
                 auto_publish = bool(body.get("auto_publish", False))
+                allow_oversized = bool(
+                    body.get("allow_oversized")
+                    or body.get("allow_huge")
+                    or body.get("confirm_huge")
+                )
                 r = feeder_mod.combine_rendered_jobs(
                     BASE,
                     job_ids=job_ids,
                     custom_title_vi=custom_title_vi,
                     auto_publish=auto_publish,
+                    # explicit_order / preserve_order: client đã ↑↓ — không sort lại theo Phần
+                    preserve_order=bool(
+                        body.get("preserve_order")
+                        or body.get("explicit_order")
+                        or False
+                    ),
+                    allow_oversized=allow_oversized,
                 )
             except Exception as e:  # noqa: BLE001
                 r = {"ok": False, "error": str(e)}
@@ -1660,12 +1797,23 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
             privacy = body.get("privacy")
             sched = body.get("schedule_hours")
             force = bool(body.get("force", False))
+            allow_oversized = bool(
+                body.get("allow_oversized")
+                or body.get("allow_huge")
+                or body.get("confirm_huge")
+            )
             busy_now, active_owner = auto_publisher.is_any_job_uploading()
             if busy_now and active_owner != job_id:
-                res = auto_publisher.enqueue_publish(job_id, privacy=privacy, schedule_hours=sched, force=force)
+                res = auto_publisher.enqueue_publish(
+                    job_id, privacy=privacy, schedule_hours=sched, force=force, allow_oversized=allow_oversized
+                )
             else:
-                res = auto_publisher.publish_job(job_id, privacy=privacy, schedule_hours=sched, force=force)
-            self._json(200 if res.get("ok") else 500, res)
+                res = auto_publisher.publish_job(
+                    job_id, privacy=privacy, schedule_hours=sched, force=force, allow_oversized=allow_oversized
+                )
+            # 400 khi từ chối oversized (UI hiện confirm), không 500
+            code = 200 if res.get("ok") else (400 if res.get("refused_oversized") else 500)
+            self._json(code, res)
             return
         if path in ("/api/auto-publish/scan", "/auto-publish/scan"):
             import auto_publisher
@@ -1736,6 +1884,28 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
                 "url": f"/meta/thumbnail?file={jpg_name}",
                 "raw_url": f"/meta/thumbnail?file={raw_ai_name}",
             })
+            return
+        # Merge parts (job đã làm / split)
+        try:
+            import films_merge_api as _fma
+            hit = _fma.dispatch("POST", path, body if isinstance(body, dict) else {})
+            if hit is not None:
+                code, payload = hit
+                self._json(code, payload)
+                return
+        except Exception as e:  # noqa: BLE001
+            self._json(500, {"ok": False, "error": f"films_merge: {e}"})
+            return
+        # Settings + Uploader API (Films UI)
+        try:
+            import uploader_settings_api as _usa
+            hit = _usa.dispatch("POST", path, body if isinstance(body, dict) else {})
+            if hit is not None:
+                code, payload = hit
+                self._json(code, payload)
+                return
+        except Exception as e:  # noqa: BLE001
+            self._json(500, {"ok": False, "error": f"uploader_settings: {e}"})
             return
         self._json(404, {"ok": False, "error": "not found"})
 

@@ -76,6 +76,7 @@ _lock = threading.Lock()
 # Trạng thái tiến trình Test All
 BATCH_STATE: dict[str, Any] = {
     "running": False,
+    "cancel": False,
     "total": 0,
     "current": 0,
     "current_name": "",
@@ -1045,6 +1046,7 @@ def run_full_test_for_season(name: str, auto_delete: bool = False, wait_for_resu
 def _batch_worker(names: list[str], auto_delete: bool, title_vi_map: dict[str, str] | None = None):
     global BATCH_STATE
     BATCH_STATE["running"] = True
+    BATCH_STATE["cancel"] = False
     BATCH_STATE["total"] = len(names)
     BATCH_STATE["current"] = 0
     BATCH_STATE["uploaded_count"] = 0
@@ -1059,6 +1061,10 @@ def _batch_worker(names: list[str], auto_delete: bool, title_vi_map: dict[str, s
     BATCH_STATE["percent"] = 0
 
     for i, nm in enumerate(names, 1):
+        if BATCH_STATE.get("cancel"):
+            BATCH_STATE["stage"] = "stopped"
+            BATCH_STATE["step_text"] = f"⏹ Đã dừng Test All tại [{i-1}/{len(names)}]."
+            break
         t_vi = (title_vi_map or {}).get(nm) or _safe_resolve_title_vi(nm)
         display_name = f"[{t_vi}] {nm}" if (t_vi and t_vi.strip().lower() != nm.strip().lower()) else nm
         BATCH_STATE["current"] = i
@@ -1153,6 +1159,16 @@ def _batch_worker(names: list[str], auto_delete: bool, title_vi_map: dict[str, s
             BATCH_STATE["step_text"] = "⚠️ Tiến trình đã dừng: Kênh YouTube đã hết lượt upload tối đa hôm nay (uploadLimitExceeded)."
     BATCH_STATE["finished_at"] = _utc_now()
     print(f"[batch-test] {BATCH_STATE['step_text']}", flush=True)
+
+
+def stop_batch_test() -> dict[str, Any]:
+    """Yêu cầu dừng Test All sau item hiện tại (không kill giữa upload)."""
+    if not BATCH_STATE.get("running"):
+        BATCH_STATE["cancel"] = False
+        return {"ok": True, "stopped": False, "message": "Không có tiến trình đang chạy."}
+    BATCH_STATE["cancel"] = True
+    BATCH_STATE["step_text"] = "⏹ Đang dừng sau bộ hiện tại…"
+    return {"ok": True, "stopped": True, "message": "Đã gửi lệnh dừng."}
 
 
 def start_batch_test(names: list[str] | None = None, limit: int = 500, auto_delete: bool = False, title_vi_map: dict[str, str] | None = None) -> dict[str, Any]:
