@@ -4,24 +4,48 @@ Mới nhất trên cùng. Mỗi mục: quyết định — bối cảnh/lý do. 
 
 ## 2026-11
 
+- **11-07 (Revive Hongguo2 UI = option B)** User: làm lại UI giống app Hongguo Downloader 2.x (Browse / Ranking / New / Library…) cho `/hongguo2`. Supersede drop 11-06: route phục vụ `hongguo2.html` (WinUI skin); classic `/hongguo` giữ nguyên. License Settings + `/api/hg/license/*`; hot-path magic `@@license@@*` qua search/resolve tới khi :8801 reload. Backup `Z:\PinelineV2_codebak\2026-11-07_hongguo2-ui-2x\`.
+
+- **11-07 (Hongguo 2.x license prove)** User paste Hongguo key → activate+prove hợp lệ vào helper Pineline; key DPAPI local (không docs); hook download RPC. Không crack / không cướp stdin WinUI.
+
+- **11-06 (Drop Hongguo2)** *(superseded 11-07 revive B)* User: bỏ hongguo 2, quá tệ — update V4–V5. Route `/hongguo2` → 302 `/hongguo`; không còn nav/link thử nghiệm; deep-link Films UI → Hongguo gốc + `bootFromQuery`. File `hongguo2.html` giữ archive trên đĩa. Fix `docs/fixes/2026-11-06-drop-hongguo2.md`.
+
+- **11-06 (Films UI Mùa mới)** User: ok làm đi — bảng mùa mới chính ở Films UI (`/films/ui?tab=seasons`), filter chỉ mùa mới hơn max đã biết; Hongguo2 còn badge/compact + Update Lib. Fix follow-up `docs/fixes/2026-11-06-hg-watchlist-discover.md`. *(superseded: Hongguo2 đã drop.)*
+- **11-06 (hg_watchlist)** User: ok — tạo bảng meta trong `films.db` (`hg_watchlist`); xoá Lib giữ sid/core/title; «Tìm mùa mới» quét theo DB+watchlist, **không** gọi Hongguo Update all (tránh tải hàng nghìn tập). Nút «Cập nhật thư viện» giữ hành vi tải tập thiếu. Fix `docs/fixes/2026-11-06-hg-watchlist-discover.md`.
+
+- **11-05 (autosplit conflict guards)** User asked V2+V4+V5 — guards chống auto-split / ASR promote chồng luồng (merged skip, same-source promote, part pipeline complete). Fix log `docs/fixes/2026-11-05-autosplit-conflict-guards.md`. Không restart lần này.
+
+- **11-05 (restore Tauri V5)** User: có — khôi phục Tauri từ archive lên root V5 (song song WebView2 `app_desktop.py`). Branding/port **8805**; `cargo check` pass. Backup `Z:\PinelineV2_codebak\2026-11-05_restore-tauri\`.
+
+- **11-04 (V5 unity — docs + xoá TARGET shells)** Consensus 3 auditor: docs-first unity; root ~10 `.py` = intentional **app core** (không tạo `core/` tuần này); giữ `pineline.server.routes` attach LIVE; giữ `http_routes` bodies; xoá shells rỗng `pineline/{agents,pipeline,sidecar,desktop,ops,server/services}`; **không** move `job_queue` vào `core/`; **không** merge `http_routes` vào `pineline`. Design: `docs/design/2026-11-04-v5-structure-unity.md`. Backup `Z:\PinelineV2_codebak\2026-11-04_v5-unity\`. Không restart :8805 (docs + delete empty dirs).
+
+- **11-05 (V5 `core/` package)** User: yes. Chuyển kernel root → `core/`: `config`, `batch_config`, `job_queue`, `job_meta`, `film_db`, `manifest`, `fileio`. Entry giữ root: `server.py`, `app_desktop.py`, `restart_server.py`. Không shim — rewrite `import X` → `import core.X as X` / `from core.X import …`. Backup `Z:\PinelineV2_codebak\2026-11-05_v5-core\`.
+
+- **11-04 (V5 Phase E — xoá shim)** User: yes. Rewrite import → `agents.*` / `engines.*` / `http_routes.*`; sửa CLI subprocess path; xoá shim root để Explorer sạch. Giữ entry thật: `server.py`, `config.py`, `job_queue.py`, … Backup `Z:\PinelineV2_codebak\2026-11-04_v5-layout-E\`.
+
+- **11-04 (V5 full layout A–D)** User: làm hết toàn bộ gọn tree; luôn sub-agent kiểm tra chéo / test / fix; codebase đồng bộ đầu–cuối. Chấp nhận move có **shim root** (`from pkg.X import *`): A junk/HTML/apps/docs → B `agents/`+`routes/` → C `engines/asr/` → D engines nóng. Restart :8805 sau mỗi phase rủi ro. Backup theo đợt `Z:\PinelineV2_codebak\2026-11-04_v5-layout-*`.
+
+- **11-04 (V5 cleanup plan + 3 auditors)** User: tạo sub-agent kiểm tra chéo + review cấu trúc + kế hoạch gọn. Skills: `v5-structure-auditor`, `v5-deadcode-hunter`, `v5-ops-docs-auditor`. Synthesis `docs/design/2026-11-04-v5-structure-cleanup.md`. Plan `docs/superpowers/plans/2026-11-04-v5-codebase-cleanup.md`. Nguyên tắc: không big-bang pipeline; không xoá TARGET maps; dual tree/films giữ; ưu tiên docs+footgun+dead UI+test trước move `routes_*`. (Superseded một phần bởi full layout A–D cùng ngày.)
+
+- **11-04 (V5 assets/fs attach + OpID)** Tiếp declutter: `assets`+`fs` cùng pattern attach; hết `@app` API còn lại trên `server.py`. GET+HEAD → `operation_id` riêng (`job_video`, `hg_library_preview`). Archive oneshot scripts + xoá tauri `node_modules` attic. Backup `Z:\PinelineV2_codebak\2026-11-04_v5-assets-fs-attach\`.
+
+- **11-04 (V5 queue/jobs SSOT)** User: nâng cấp V5 gọn, hết chắp vá dual route/manifest. Chọn: **một thân handler trong `server.py`** + **một bản đồ path** `pineline.server.routes.{queue,jobs}.attach` + `include_router` (giống quyết định jobs 11-02). Xoá bản copy dead trong package `queue.py`. Metadata list → `films.db`; live progress → 1 manifest (`current`). Hợp đồng: `docs/MANIFEST_CONTRACT.md`. Không port pattern này sang V2/V4 trong đợt này. Backup `Z:\PinelineV2_codebak\2026-11-04_v5-queue-ssot\`.
+
 - **11-02 (review lock)** 31B chỉ mượt văn; CẤM đổi self/call khi pronouns_locked (prompt + filter).
 
 - **11-02 (pronoun A–C)** User: làm hết V2+V4+V5 — analyze full ZH (lô+memory) → lock → ledger → QA/GPT vá. Không đợi diarization. Backup Z:\PinelineV2_codebak\2026-11-02_pronoun-consistency-abc\.
 
-- **11-02 (pipeline LLM 3 tầng)** User chốt: local dịch thô → GPT name/pronoun → **31B rà văn phong**.
-  - `TRANSLATE_MODEL=local`; `NAME`/`PRONOUN=chatgpt/gpt-5-6-mini`; `REVIEW_MODEL=ollama/gemma4:31b-cloud`.
-  - `llm.chat`: model `ollama/*` / `*-cloud` → `CLOUD_LLM_*` (9router), không nuốt vào `:8083`.
-  - Backup `Z:\PinelineV2_codebak\2026-11-02_review-31b\`.
-- **11-02 (Aurora GPT pass ngắn)** User: pool ~100 Free → thử dùng thật. **Không** đổ TRANSLATE bulk lên Free.
-  - `llm.chat` nhận tiền tố `chatgpt/` / `aurora/` → Aurora `:5005` (pool Free).
-  - `NAME_MODEL` / `PRONOUN_MODEL` = `chatgpt/gpt-5-6-mini`; TRANSLATE giữ local.
-  - Backup `Z:\PinelineV2_codebak\2026-11-02_aurora-name-pronoun\`.
-- **11-02 (xưng hô translate)** User: improve translate vì lệch xưng hô nhiều — làm **cả V4 + V5**.
-  - Post-pass deterministic `apply_pronoun_postpass` (tẩy Ta–Ngươi đô thị/mixed + ép self/call khi đủ tên who/to).
-  - Inject mạnh xưng hô theo phân cảnh trong `_resolve_scene_context` + siết prompt batch.
-  - `agent_pronoun_pass.run_pronoun_pass` (LLM) chạy sau name-pass khi Agent yêu cầu rà soát.
-  - Không đổi model mặc định; không hard-lock mọi đại từ khi thiếu diarization.
-- **11-02 (khung)** V5 có package `pineline/` (routes/services/pipeline/…) — chi tiết ghi trên **`Z:\PinelineV5\docs\DECISIONS.md`**. V4 không đổi cấu trúc runtime. V5 đã có queue LIVE + jobs registry LIVE.
+- **11-02 (pipeline LLM 3 tầng)** Sync V4: local dịch → GPT name/pronoun → REVIEW `gemma4:31b-cloud` + `CLOUD_LLM_*`. Backup `Z:\PinelineV2_codebak\2026-11-02_review-31b\`.
+- **11-02 (Aurora GPT pass ngắn)** Sync V4: `chatgpt/` route + `NAME_MODEL`/`PRONOUN_MODEL`; translate bulk vẫn local. Backup `Z:\PinelineV2_codebak\2026-11-02_aurora-name-pronoun\`.
+- **11-02 (xưng hô translate)** Đồng bộ với V4: `apply_pronoun_postpass` + `agent_pronoun_pass` + inject cảnh; Agent review = tên → xưng hô → văn phong. Backup `Z:\PinelineV2_codebak\2026-11-02_v4-pronoun-pass\`.
+- **11-02 (jobs registry)** Tiếp khung V5: `/api/jobs/*` đăng ký qua `pineline.server.routes.jobs.attach` (bảng path→handler). Thân hàm **giữ trong `server.py`** (xen helper ~1.7k dòng) — tránh big-bang AST move (extractor unparse đã thử và rollback). Bỏ `@app` trên jobs; `include_router` sau queue. Tiếp: assets registry hoặc chuyển dần body jobs.
+- **11-02 (khung thư mục)** User: cần cấu trúc khung rõ ràng hơn trên V5.
+  - Thêm package **`pineline/`** làm bản đồ + chỗ chuyển dần: `server/routes`, `server/services`, `pipeline`, `agents`, `sidecar`, `desktop`, `ops` (mỗi nhánh có README).
+  - Code runtime cũ **giữ ở root** đến khi từng cụm LIVE; không big-bang move.
+  - Đợt 1 LIVE: `pineline.server.routes.queue` (`/api/queue/*`); `server.py` `include_router` + re-export tên cũ cho test/`check_batch*`.
+  - Route trong package `pineline.*` dùng **lazy `S` proxy** (không `import server` top-level) để tránh circular import khi server nạp router.
+  - Launcher **`run_v5.bat`**, default port **8805** (desktop/restart/tele/migrate/canva/agents).
+  - Tiếp theo (cùng khung): `jobs` → `assets` → chuyển `routes_ui/hg/agent` vào `pineline.server.routes`.
 - **11-02** Refactor cấu trúc codebase (dễ đọc / ổn định) — **không sửa inplace trên V4**.
   - Tạo tree riêng **`Z:\PinelineV5`** (copy từ V4). V4 = bản ổn định / restore; production ops vẫn theo V4 (:8804) cho đến khi user chuyển.
   - V5 dùng cổng **:8805**, temp `D:\PinelineV5_tmp`, work mặc định `D:\PinelineV5_work` (tránh đụng process/data V4).

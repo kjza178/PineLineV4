@@ -199,6 +199,30 @@ def hg_series(series_id: str, base: str | None = None):
         return _hg_err(e)
 
 
+@router.get("/api/hg/series/{series_id}/seasons")
+def hg_series_seasons(series_id: str, base: str | None = None):
+    """Franchise seasons (S1…Sn) — RPC series.seasons."""
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    try:
+        return hg.series_seasons(series_id, _hg_base(base))
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.get("/api/hg/series/{series_id}/qualities")
+def hg_series_qualities(series_id: str, base: str | None = None):
+    """Quality ladder + bitrate — RPC series.qualities."""
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    try:
+        return hg.series_qualities(series_id, _hg_base(base))
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
 @router.get("/api/hg/status")
 def hg_status(base: str | None = None):
     import importlib
@@ -227,7 +251,12 @@ def hg_submit(body: S.HgSubmitIn):
     import hongguo_bridge as hg
     hg = importlib.reload(hg)
     try:
-        return hg.submit(body.series_ids, _hg_base(body.base), scores=body.scores)
+        return hg.submit(
+            body.series_ids,
+            _hg_base(body.base),
+            scores=body.scores,
+            quality=getattr(body, "quality", None),
+        )
     except Exception as e:  # noqa: BLE001
         return _hg_err(e)
 
@@ -235,13 +264,88 @@ def hg_submit(body: S.HgSubmitIn):
 @router.get("/api/hg/rank")
 def hg_rank(category: str = "all", board: str = "recommend",
             offset: int = 0, size: int = 100, base: str | None = None):
-    """Bảng hot giống app Downloader (Leaderboard /dl/rank)."""
+    """Bảng hot / Browse feed / Catalog.
+
+    board=browse|feed → RPC feed.page
+    board=catalog|catalog_newest|catalog_popular|catalog_eps → Explorer catalog
+    category = rank cat (all/ai/human/comic) hoặc tên genre Explorer
+    """
     import importlib
     import hongguo_bridge as hg
     hg = importlib.reload(hg)
     try:
         return hg.rank(category=category, board=board, offset=offset,
                        size=size, base=_hg_base(base))
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.get("/api/hg/genres")
+def hg_genres(limit: int = 40):
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    try:
+        return {"genres": hg.genres(limit)}
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.get("/api/hg/catalog")
+def hg_catalog(
+    genre: str = "",
+    sort: str = "newest",
+    status: str = "",
+    q: str = "",
+    page: int = 1,
+    size: int = 48,
+):
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    try:
+        return hg.catalog(genre=genre, sort=sort, status=status, q=q, page=page, size=size)
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.get("/api/hg/feed")
+def hg_feed(
+    offset: int = 0,
+    size: int = 48,
+    panel: int = 1,
+    session_id: str = "",
+    genre: str = "",
+    category_dim_theme: str = "",
+    category_dim_role: str = "",
+    category_dim_epoch: str = "",
+    sort: str = "",
+    gender: str = "",
+    online_time: str = "",
+    base: str | None = None,
+):
+    """Hongguo 2.x Browse = feed.page + selector panel (WinUI facets)."""
+    import importlib
+    import hongguo_bridge as hg
+    hg = importlib.reload(hg)
+    select = {
+        "genre": genre,
+        "category_dim_theme": category_dim_theme,
+        "category_dim_role": category_dim_role,
+        "category_dim_epoch": category_dim_epoch,
+        "sort": sort,
+        "gender": gender,
+        "online_time": online_time,
+    }
+    select = {k: v for k, v in select.items() if (v or "").strip()}
+    try:
+        return hg.feed_browse(
+            select=select or None,
+            offset=offset,
+            size=size,
+            panel=bool(panel),
+            session_id=session_id or "",
+        )
     except Exception as e:  # noqa: BLE001
         return _hg_err(e)
 
@@ -331,15 +435,19 @@ def hg_library_preview(name: str, base: str | None = None):
 
 
 @router.get("/api/hg/img")
-def hg_img(url: str, base: str | None = None):
-    """Proxy ảnh cover qua Hongguo /img (HEIC → JPEG) — kèm UI token."""
+def hg_img(url: str | None = None, u: str | None = None, base: str | None = None):
+    """Proxy ảnh cover qua Hongguo /img (HEIC → JPEG) — kèm UI token.
+
+    Chấp nhận cả ``?url=`` (hongguo.html) và ``?u=`` (hongguo2).
+    """
     import importlib
     import hongguo_bridge as hg
     hg = importlib.reload(hg)
-    if not (url or "").strip():
+    target = (url or u or "").strip()
+    if not target:
         return JSONResponse({"error": "thiếu url"}, status_code=400)
     try:
-        data, ctype = hg.fetch_img_proxy(url.strip(), _hg_base(base))
+        data, ctype = hg.fetch_img_proxy(target, _hg_base(base))
         return Response(content=data, media_type=ctype, headers={
             "Cache-Control": "public, max-age=86400",
         })
@@ -496,7 +604,6 @@ def meta_generate(body: dict):
 @router.post("/api/meta/generate-title")
 @router.post("/meta/generate-title")
 def meta_generate_title(body: dict):
-    """Sinh tiêu đề YouTube (port từ V2) — giữ nguyên meta/ai-image + meta/baike của V4."""
     import meta_studio
     try:
         job_id = str(body.get("job_id") or "").strip()
@@ -580,68 +687,61 @@ def meta_series_info(job_id: str = ""):
     }
 
 
-@router.post("/api/meta/ai-image")
-@router.post("/meta/ai-image")
-def meta_ai_image(body: dict):
-    import io
-    import time
-    from PIL import Image
-    import meta_studio
-    prompt = str(body.get("prompt") or "").strip()
-    job_id = str(body.get("job_id") or f"gen_{int(time.time())}").strip()
-    if not prompt:
-        return JSONResponse({"ok": False, "error": "Thiếu prompt"}, status_code=400)
-    img_bytes = meta_studio.generate_ai_image(prompt, timeout=120)
-    if not img_bytes:
-        return JSONResponse({"ok": False, "error": "AI không sinh được ảnh (timeout hoặc lỗi)"}, status_code=500)
-    out_name = f"thumb_{job_id}_ai.png"
-    out_p = meta_studio.THUMB_DIR / out_name
-    out_p.write_bytes(img_bytes)
+@router.get("/api/hg/license/status")
+def hg_license_status():
+    """Safe license status for Hongguo 2.x UI — never returns key/proof."""
+    import importlib
+    import hongguo_license_ensure as lic
+    lic = importlib.reload(lic)
     try:
-        jpg_name = f"thumb_{job_id}.jpg"
-        jpg_p = meta_studio.THUMB_DIR / jpg_name
-        im = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        im.save(jpg_p, format="JPEG", quality=92, optimize=True)
-    except Exception:
-        pass
-    return {
-        "ok": True,
-        "path": str(out_p),
-        "filename": out_name,
-        "url": f"/meta/thumbnail?file={out_name}",
-        "jpg_url": f"/meta/thumbnail?file=thumb_{job_id}.jpg",
-    }
+        return lic.status_public()
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
 
 
-@router.get("/api/meta/baike")
-@router.get("/meta/baike")
-def meta_baike(q: str = "", title: str = ""):
-    tit = (q or title).strip()
-    if not tit:
-        return JSONResponse({"ok": False, "error": "thiếu tên phim"}, status_code=400)
+@router.post("/api/hg/license/key")
+def hg_license_key(body: dict | None = None):
+    import importlib
+    import hongguo_license_ensure as lic
+    lic = importlib.reload(lic)
+    body = body or {}
+    key = (body.get("key") or "").strip()
     try:
-        import hongguo_bridge as hg
-        info = hg.baike_deep(title=tit)
-        intro_vi = ""
-        try:
-            import title_mt as tmt
-            if info.get("intro"):
-                tr = tmt.translate_titles([{"series_id": "intro", "title": info["intro"][:300]}])
-                if tr.get("items"):
-                    intro_vi = tr["items"][0].get("title_vi", "")
-        except Exception:
-            pass
-        return {
-            "ok": True,
-            "title": info.get("title") or tit,
-            "tags": info.get("tags") or [],
-            "intro": info.get("intro") or "",
-            "intro_vi": intro_vi,
-            "actors": info.get("actors") or [],
-            "roles": info.get("roles") or [],
-        }
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        r = lic.store_key(key)
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=400)
+        return r
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.delete("/api/hg/license/key")
+def hg_license_key_clear():
+    import importlib
+    import hongguo_license_ensure as lic
+    lic = importlib.reload(lic)
+    try:
+        return lic.clear_key()
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
+
+
+@router.post("/api/hg/license/prove")
+def hg_license_prove(body: dict | None = None):
+    import importlib
+    import hongguo_license_ensure as lic
+    lic = importlib.reload(lic)
+    body = body or {}
+    force = bool(body.get("force") or False)
+    try:
+        r = lic.ensure_licensed(force=force)
+        # strip activate log (may contain sensitive fragments)
+        r = {k: v for k, v in r.items() if k != "activate_log_tail"}
+        if not r.get("ok"):
+            return JSONResponse(r, status_code=502)
+        return r
+    except Exception as e:  # noqa: BLE001
+        return _hg_err(e)
 
 
 

@@ -1,8 +1,8 @@
-"""Trang UI chính thức V4: /, /ui3, /hongguo.
+"""Trang UI chính thức V4: /, /ui3, /hongguo, /hongguo2.
 
-/hongguo2 → 302 /hongguo (Hongguo2 đã bỏ).
+/hongguo2 = skin WinUI 2.x (Browse / Ranking / New / Library).
 
-UI duy nhất: index3.html. (index.html đã archive → scripts/archive/ui_legacy/)
+UI chính: index3.html. (index.html đã archive → scripts/archive/ui_legacy/)
 """
 from __future__ import annotations
 
@@ -73,11 +73,10 @@ def ui_hongguo():
     return _html_file("hongguo.html")
 
 
-@router.get("/hongguo2")
+@router.get("/hongguo2", response_class=HTMLResponse)
 def ui_hongguo2():
-    """Deprecated — redirect về Hongguo gốc (Hongguo2 bỏ dùng)."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/hongguo", status_code=302)
+    """Hongguo Downloader 2.x skin (Browse / Ranking / New / Library)."""
+    return _html_file("hongguo2.html")
 
 
 @router.get("/v5-map", response_class=HTMLResponse)

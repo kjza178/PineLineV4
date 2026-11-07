@@ -42,6 +42,9 @@ def _parse_season_from_text(*texts: str) -> int | None:
             return int(val)
         if val in _CN_NUMS:
             return _CN_NUMS[val]
+    # «Phần Cuối» / «mùa cuối» — không phải Phần 1 (tránh auto-pub gắn title premise S1).
+    if re.search(r"(?:phần|mùa|tập|season)\s*cuối|\bfinal\b", blob, re.I):
+        return -1
     return None
 
 
