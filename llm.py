@@ -183,7 +183,12 @@ def _chatgpt_settings() -> tuple[list[str], str, str]:
             v = (os.getenv(k) or "").strip().rstrip("/")
         if v and v not in bases:
             bases.append(v)
-    for fb in ("http://192.168.31.247:5005/v1", "http://192.168.31.244:5005/v1"):
+    # Local GPT proxy trước; Aurora LAN còn làm fallback (upload file / khi :3377 tắt)
+    for fb in (
+        "http://127.0.0.1:3377/v1",
+        "http://192.168.31.247:5005/v1",
+        "http://192.168.31.244:5005/v1",
+    ):
         if fb not in bases:
             bases.append(fb)
     try:

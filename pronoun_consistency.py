@@ -135,8 +135,17 @@ def write_zh_export(work_dir: Path, lines: list[dict]) -> Path:
     return p
 
 
-def write_zh_srt(work_dir: Path, lines: list[dict], segments: list[dict] | None = None) -> Path:
-    """Xuất sub.zh.srt để Aurora upload (API.md: POST /v1/files)."""
+def write_zh_srt(
+    work_dir: Path,
+    lines: list[dict],
+    segments: list[dict] | None = None,
+    *,
+    annotate_i: bool = False,
+) -> Path:
+    """Xuất sub.zh.srt để Aurora upload (API.md: POST /v1/files).
+
+    annotate_i=True → tiền tố `[i=N]` trong text (plan glossary dùng range theo i thật).
+    """
     work_dir = Path(work_dir)
     by_i = {}
     for s in segments or []:
@@ -147,7 +156,10 @@ def write_zh_srt(work_dir: Path, lines: list[dict], segments: list[dict] | None 
                 pass
     blocks = []
     for n, x in enumerate(lines, 1):
-        i = int(x["i"])
+        try:
+            i = int(x["i"])
+        except (TypeError, ValueError, KeyError):
+            continue
         seg = by_i.get(i) or {}
         try:
             st = float(seg.get("start") or (n - 1) * 2.0)
@@ -162,9 +174,14 @@ def write_zh_srt(work_dir: Path, lines: list[dict], segments: list[dict] | None 
             m = int((sec % 3600) // 60)
             s = int(sec % 60)
             ms = int(round((sec - int(sec)) * 1000))
+            if ms >= 1000:
+                s += 1
+                ms = 0
             return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
         zh = (x.get("zh") or "").replace("\n", " ").strip()
+        if annotate_i:
+            zh = f"[i={i}] {zh}"
         blocks.append(f"{n}\n{ts(st)} --> {ts(en)}\n{zh}\n")
     srt_path = work_dir / "sub.zh.srt"
     srt_path.write_text("\n".join(blocks), encoding="utf-8")
@@ -621,18 +638,21 @@ def lock_banner(plan: dict | None) -> str:
 
 
 def review_lock_rules(plan: dict | None) -> str:
-    """Prompt ép 31B review: khi đã lock thì CẤM đổi self/call."""
-    if not is_pronouns_locked(plan):
+    """Prompt review xưng hô — linh hoạt theo cảnh (đô thị↔tu tiên)."""
+    lock = (plan or {}).get("style_lock") if isinstance((plan or {}).get("style_lock"), dict) else {}
+    mode = str(lock.get("mode") or "").lower()
+    flex = mode in ("mixed", "", "unknown") or not is_pronouns_locked(plan)
+    if flex:
         return (
-            "3. SỬA LỖI NGƯỢC ĐẠI TỪ / XƯNG HÔ LỆCH RÕ: bám phân cảnh + ma trận; "
-            "CẤM đảo ngôi ('Đến lượt ngươi' ≠ 'Đến lượt ta'). "
-            "CẤM tự ý nhảy anh–em ↔ ông–tôi chỉ vì câu nghe 'hay' hơn.\n"
+            "3. XƯNG HÔ: GIỮ nguyên đại từ trong vi_nhap nếu đã khớp ZH. "
+            "CẤM đổi Lão tử/ta/ngươi → tôi/cậu chỉ vì 'hay hơn'. "
+            "Chỉ sửa khi đảo ngôi TRONG CÙNG câu so với ZH "
+            "('Đến lượt ngươi' ≠ 'Đến lượt ta'). Không ép một thanh ngữ cả phim.\n"
         )
     return (
-        "3. XƯNG HÔ ĐÃ KHÓA (pronouns_locked): CẤM đổi self/call / thanh ngữ "
-        "(anh–em, tôi–cậu, ông–tôi…). Chỉ được sửa từ khác (Hán-Nôm thô, dài dòng, lệch nhịp). "
-        "Nếu vi_nhap đã đúng ngôi theo ma trận khóa → GIỮ nguyên đại từ đó. "
-        "Chỉ sửa đại từ khi vi_nhap đảo ngôi rõ so với ZH (vd 到你了 mà dịch 'Đến lượt ta').\n"
+        "3. Xưng hô theo ma trận pronouns: ưu tiên giữ self/call đã chốt trong cùng quan hệ/"
+        "cùng cảnh. Được nới khi phân cảnh chuyển genre rõ. "
+        "Chỉ sửa đại từ khi vi_nhap đảo ngôi rõ so với ZH trong cùng câu.\n"
     )
 
 
@@ -660,8 +680,13 @@ def filter_review_fixes_for_lock(
     rows: list[dict],
     plan: dict | None,
 ) -> dict[int, str]:
-    """Khi pronouns_locked: loại fix làm đổi thanh ngữ so với vi_nhap."""
-    if not is_pronouns_locked(plan) or not fixes:
+    """Lọc fix phá xưng hô — bỏ qua khi mixed/linh hoạt (đô thị↔tu tiên)."""
+    if not fixes:
+        return fixes
+    lock = (plan or {}).get("style_lock") if isinstance((plan or {}).get("style_lock"), dict) else {}
+    mode = str(lock.get("mode") or "").lower()
+    # mixed / không lock cứng → cho phép đổi register theo cảnh
+    if mode in ("mixed", "", "unknown") or not is_pronouns_locked(plan):
         return fixes
     by_i = {r.get("i"): r for r in rows if isinstance(r, dict) and "i" in r}
     out = {}

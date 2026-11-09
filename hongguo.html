@@ -2350,30 +2350,10 @@ async function refreshAll(){
     else await loadRank();
   }
 }
-/** Deep-link từ Films UI: ?sid=… và/hoặc ?q=… */
-async function bootFromQuery(){
-  try{
-    const p=new URLSearchParams(location.search||'');
-    const sid=(p.get('sid')||'').trim();
-    const q=(p.get('q')||'').trim();
-    if(!sid && !q) return;
-    switchLeftTab('search');
-    if(sid){
-      const paste=document.getElementById('paste-id');
-      if(paste) paste.value=sid;
-      await addByPaste();
-      try{ openBaikeDetail(sid, q); }catch(e){}
-    } else if(q){
-      const qel=document.getElementById('q');
-      if(qel) qel.value=q;
-      await doSearch();
-    }
-  }catch(e){ console.warn('bootFromQuery', e); }
-}
 loadDlQueueFromStorage();
 const _libSeasonsEl=document.getElementById('libSeasons');
 if(_libSeasonsEl) _libSeasonsEl.addEventListener('click', lsnClick);
-refreshAll().then(()=>bootFromQuery());
+refreshAll();
 setInterval(()=>{ ping(); refreshStatus(); refreshMerge(); }, 4000);
 setInterval(refreshLibrary, 15000);
 </script>

@@ -1773,8 +1773,12 @@ function renderProjectsList(projects, avail, total){
       st = `<span style="color:#fbbf24;font-size:11px" title="Chưa bật YouTube Data API v3 trên Google Console">⚠️ Chưa bật API</span>`;
       btn = `<a href="${p.enable_url}" target="_blank" class="b sm" style="padding:2px 8px;font-size:11px;background:#b45309;color:#fff;text-decoration:none;display:inline-block" title="Bật YouTube Data API v3 trên Google Cloud Console">⚡ Bật API trên Console</a>`;
     } else if(p.exhausted_today){
-      st = `<span style="color:#f87171;font-size:11px">⚠️ Hết quota hôm nay (429)</span>`;
-      btn = `<button class="b sm" style="padding:2px 8px;font-size:11px;background:#2563eb;color:#fff" onclick="resetProjectQuota(${jq(p.id)})" title="Reset cờ 429 nếu quota đã reset">⚡ Thử lại Quota</button>`;
+      const er = p.exhausted_reason || 'api_quota';
+      const erLabel = er === 'upload_limit' ? 'Giới hạn upload kênh'
+        : er === 'rate_limit' ? 'Rate limit tạm (30p)'
+        : 'Hết quota API (GCP)';
+      st = `<span style="color:#f87171;font-size:11px">⚠️ ${erLabel}</span>`;
+      btn = `<button class="b sm" style="padding:2px 8px;font-size:11px;background:#2563eb;color:#fff" onclick="resetProjectQuota(${jq(p.id)})" title="Xoá cờ local nếu GCP/Console còn hạn mức">⚡ Thử lại Quota</button>`;
     } else {
       st = `<span style="color:#4ade80;font-size:11px">🟢 Sẵn sàng (${esc(p.channel_title || 'Sai Kira')})</span>`;
       btn = `<button class="b sm" style="padding:2px 8px;font-size:11px;background:#262626" onclick="startTestChannelOAuth(${jq(p.id)})" title="Đổi sang kênh YouTube khác cho project này">🔄 Đổi kênh</button>`;
@@ -1844,14 +1848,27 @@ async function recheckTestChannelHealth(){
   }
 }
 
+let TC_OAUTH_EXPECT = null; // { projectId, startedAt, prevConnectedAt }
+
 async function startTestChannelOAuth(projectId){
   toast('Đang tạo liên kết đăng nhập Google OAuth…');
   try {
+    // Baseline: tránh poll báo «thành công» vì session cũ vẫn connected
+    let prevConnectedAt = '';
+    try {
+      const st0 = await (await fetch('/test-channel/status')).json();
+      prevConnectedAt = st0.connected_at || '';
+    } catch(_e){}
     const url = '/test-channel/auth-url' + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
     const res = await (await fetch(url)).json();
     if(res.ok && res.auth_url){
+      TC_OAUTH_EXPECT = {
+        projectId: res.project_id || projectId || '',
+        startedAt: Date.now(),
+        prevConnectedAt
+      };
       window.open(res.auth_url, '_blank');
-      toast(`Đã mở trang đăng nhập Google cho ${res.project_name || 'Project'}! Hãy chọn tài khoản Kênh Phụ.`);
+      toast(`Đã mở Google cho «${res.project_name || res.project_id || 'Project'}». Chọn đúng Gmail/kênh phụ (khác tài khoản cũ nếu muốn đổi kênh), rồi chờ trang callback…`);
       pollForTestChannelAuth();
     } else {
       toast('Lỗi tạo URL đăng nhập: ' + (res.error || 'Thất bại'));
@@ -1867,17 +1884,35 @@ function pollForTestChannelAuth(){
   let count = 0;
   POLL_TC_TIMER = setInterval(async () => {
     count++;
-    if(count > 40){ clearInterval(POLL_TC_TIMER); return; }
+    if(count > 60){
+      clearInterval(POLL_TC_TIMER);
+      toast('⏱ Hết thời gian chờ OAuth. Nếu đã đăng nhập xong, bấm 🔄 Quét lại API trong modal Kênh Test.');
+      return;
+    }
     try {
       const res = await (await fetch('/test-channel/status')).json();
-      if(res.connected){
-        clearInterval(POLL_TC_TIMER);
-        checkTestChannelStatus();
-        toast('🎉 Đã kết nối Kênh Phụ Test thành công: ' + res.channel_title);
-        closeTestChannelModal();
+      const exp = TC_OAUTH_EXPECT;
+      if(!res.connected) return;
+      // Chỉ nhận khi OAuth MỚI xong: connected_at đổi, hoặc last_connected_project khớp project đang đổi
+      const newer = !!(res.connected_at && exp && res.connected_at !== exp.prevConnectedAt);
+      const sameProj = !!(exp && exp.projectId && res.last_connected_project === exp.projectId && newer);
+      const anyNew = !exp ? true : newer;
+      if(!(sameProj || (anyNew && newer))) return;
+      // Nếu đang đổi đúng 1 project: kiểm tra health list đã đổi tên kênh (nếu có)
+      if(exp && exp.projectId && Array.isArray(res.projects)){
+        const p = res.projects.find(x => x.id === exp.projectId);
+        // Cho phép pass khi connected_at mới (kể cả cùng tên kênh — user chọn lại cùng Gmail)
+        if(!newer) return;
       }
+      clearInterval(POLL_TC_TIMER);
+      TC_OAUTH_EXPECT = null;
+      checkTestChannelStatus();
+      const who = res.channel_title || res.last_connected_project || 'Kênh Test';
+      toast('🎉 Đã liên kết xong: ' + who + (res.last_connected_project ? ` (${res.last_connected_project})` : ''));
+      // Giữ modal mở để thấy list project cập nhật
+      openTestChannelModal();
     } catch(e){}
-  }, 2500);
+  }, 2000);
 }
 
 async function submitTestChannelCode(){

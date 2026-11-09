@@ -18,12 +18,37 @@ echo.
 set /p choice="Chọn chế độ [1/2] (mặc định 1): "
 if "%choice%"=="" set choice=1
 
+REM Pin Python 3.12 — PATH uu tien 3.15 sau update → thieu fastapi/requests
+set "PY="
+if exist "C:\Python312\python.exe" (
+  set "PY=C:\Python312\python.exe"
+)
+if not defined PY if exist "%~dp0pineline_env\Scripts\python.exe" (
+  set "PY=%~dp0pineline_env\Scripts\python.exe"
+)
+if not defined PY if exist "%~dp0.venv\Scripts\python.exe" (
+  set "PY=%~dp0.venv\Scripts\python.exe"
+)
+if not defined PY (
+  where python >nul 2>&1 && for /f "delims=" %%I in ('where python') do (
+    if not defined PY set "PY=%%I"
+  )
+)
+if not defined PY (
+  echo [loi] Khong thay C:\Python312\python.exe
+  pause
+  exit /b 1
+)
+
 if "%choice%"=="1" (
-    echo Đang khởi động PineLine Studio Desktop...
-    python app_desktop.py
+    echo Dang khoi dong PineLine Studio Desktop...
+    echo Python: %PY%
+    "%PY%" app_desktop.py
 ) else (
-    echo Đang khởi động PineLine V4 Web Server...
+    echo Dang khoi dong PineLine V4 Web Server...
     set "PORT=8804"
-    python server.py --host 127.0.0.1 --port 8804
+    echo Python: %PY%
+    "%PY%" server.py --host 127.0.0.1 --port 8804
 )
 pause
+

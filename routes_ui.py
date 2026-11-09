@@ -1,13 +1,15 @@
-"""Trang UI chính thức V4: /, /ui3, /hongguo, /hongguo2.
+"""Trang UI: /, /ui3, /ui4, /hongguo, /hongguo2, /films/ui, /studio, /v5-map.
 
-/hongguo2 = skin WinUI 2.x (Browse / Ranking / New / Library).
+/hongguo2 = skin WinUI 2.x (Browse/Ranking/New/Library).
+/films|/film|/films/ui = films_ui.html · /studio = index3 (Lồng tiếng Studio).
 
-UI chính: index3.html. (index.html đã archive → scripts/archive/ui_legacy/)
-"""
+Tách từ server.py (đợt 7). Chỉ được nạp từ cuối server.py (sau khi mọi hàm/model lõi đã
+định nghĩa): truy cập server qua `S.<tên>` để patch `server.<tên>` trong test vẫn có tác dụng."""
 from __future__ import annotations
 
 from pathlib import Path
 from fastapi.responses import HTMLResponse
+
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -20,15 +22,18 @@ __all__ = [
     "ui4",
     "ui_hongguo",
     "ui_hongguo2",
+    "ui_films",
+    "ui_studio",
     "ui_v5_map",
     "router",
 ]
 
 
 def find_index() -> Path | None:
-    """UI chính: index3.html cạnh server."""
+    """Tìm index.html ở web/ hoặc ngay cạnh server.py (phòng khi tải file phẳng)."""
     here = Path(__file__).parent
-    for p in (here / "index3.html", Path("index3.html")):
+    for p in (here / "web" / "index.html", here / "index.html",
+              Path("web/index.html"), Path("index.html")):
         if p.exists():
             return p
     return None
@@ -39,24 +44,11 @@ def index():
     p = find_index()
     if not p:
         return HTMLResponse(
-            "<h2>Không tìm thấy index3.html</h2>"
-            "<p>Đặt file cạnh server.py.</p>",
+            "<h2>Không tìm thấy index.html</h2>"
+            "<p>Đặt file vào <code>web/index.html</code> cạnh server.py.</p>",
             status_code=500,
         )
-    return HTMLResponse(p.read_text(encoding="utf-8"))
-
-
-@router.get("/ui3", response_class=HTMLResponse)
-@router.get("/index3.html", response_class=HTMLResponse)
-def ui3():
-    return index()
-
-
-@router.get("/ui4", response_class=HTMLResponse)
-@router.get("/index4.html", response_class=HTMLResponse)
-def ui4():
-    # Alias lịch sử → UI chính
-    return index()
+    return p.read_text(encoding="utf-8")
 
 
 def _html_file(name: str) -> HTMLResponse:
@@ -67,9 +59,24 @@ def _html_file(name: str) -> HTMLResponse:
     return HTMLResponse(f"<h2>Không tìm thấy {name}</h2>", status_code=404)
 
 
+@router.get("/ui3", response_class=HTMLResponse)
+@router.get("/index3.html", response_class=HTMLResponse)
+def ui3():
+    """UI C — Shell vs Data (khung tĩnh, chống giật innerHTML)."""
+    return _html_file("index3.html")
+
+
+@router.get("/ui4", response_class=HTMLResponse)
+@router.get("/index4.html", response_class=HTMLResponse)
+def ui4():
+    """UI D — Full ops: preview + script grid + queue bảng %."""
+    return _html_file("index4.html")
+
+
 @router.get("/hongguo", response_class=HTMLResponse)
 @router.get("/ui-hg", response_class=HTMLResponse)
 def ui_hongguo():
+    """UI riêng — điều khiển Hongguo Downloader (search/tải/merge)."""
     return _html_file("hongguo.html")
 
 
@@ -79,12 +86,22 @@ def ui_hongguo2():
     return _html_file("hongguo2.html")
 
 
+@router.get("/films/ui", response_class=HTMLResponse)
+@router.get("/film", response_class=HTMLResponse)
+@router.get("/films", response_class=HTMLResponse)
+def ui_films():
+    """Films UI (thư viện phim / mùa mới) — cùng host :8801."""
+    return _html_file("films_ui.html")
+
+
+@router.get("/studio", response_class=HTMLResponse)
+@router.get("/studio/ui", response_class=HTMLResponse)
+def ui_studio():
+    """Lồng tiếng Studio — UI3 ops shell."""
+    return _html_file("index3.html")
+
+
 @router.get("/v5-map", response_class=HTMLResponse)
 def ui_v5_map():
     """Interactive module/call graph (static HTML; curated nodes)."""
     return _html_file("v5-map.html")
-
-
-@router.get("/workflow", response_class=HTMLResponse)
-def ui_workflow():
-    return _html_file("workflow.html")
