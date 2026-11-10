@@ -1421,6 +1421,7 @@ def settings_update(patch: dict | None = None) -> dict:
 
 
 def _idle_watch() -> None:
+    global _last_used
     while True:
         time.sleep(30)
         if _IDLE_SEC <= 0:

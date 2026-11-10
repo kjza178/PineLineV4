@@ -836,6 +836,10 @@ function renderDetail(j){
       <option value="auto">auto</option>
       <option value="oneshot">oneshot</option>
     </select></label>
+    <label class="chk" title="REVIEW chính = Gemma local; backup = Aurora GPT song song">🛡 <select id="auto-review-backup">
+      <option value="off" selected>REVIEW: chính</option>
+      <option value="aurora_parallel">Aurora GPT∥</option>
+    </select></label>
     <label class="chk" title="Quét chữ trên hình (tên/địa danh)"><input type="checkbox" id="auto-ocr"> OCR</label>
     <label class="chk" title="Ghép đủ câu + bắt kịp khoảng trống"><input type="checkbox" id="auto-fit" checked> Khớp time</label>
     <label class="chk" title="Độ phân giải xuất">🖥 <select id="auto-res"><option value="source" selected>Nguồn</option><option value="1080">1080p/1K</option></select></label>
@@ -2111,6 +2115,7 @@ function collectRunAllOpts(){
   const fit=(document.getElementById('auto-fit')||{checked:true}).checked;
   const resolution=(document.getElementById('auto-res')||{value:'source'}).value||'source';
   const translate_mode=(document.getElementById('auto-tr-mode')||{value:'batch'}).value||'batch';
+  const review_backup=(document.getElementById('auto-review-backup')||{value:'off'}).value||'off';
   const zAuto=(document.getElementById('auto-zoom')||{value:'1.12'}).value;
   const zoom=(zAuto==='off'||zAuto==='1.0')?'off':(parseFloat(zAuto)||1.12);
   const motion=!!(document.getElementById('auto-motion')||{checked:true}).checked;
@@ -2123,7 +2128,7 @@ function collectRunAllOpts(){
   const brand_text=(document.getElementById('auto-brand-text')||{value:''}).value||'';
   const brand_logo=(document.getElementById('auto-brand-logo')||{value:'off'}).value||'off';
   const orig_vol=parseFloat((document.getElementById('auto-ovol')||{value:(audio_mode==='duck_bgm')?'0.22':'0.6'}).value);
-  return {voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,
+  return {voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,review_backup,
     zoom,motion,lut,grain,flip,frame,brand:brand_mode!=='off',brand_mode,brand_text,brand_logo,vbitrate};
 }
 
@@ -2252,6 +2257,7 @@ async function runAll(id){ return guardAct('all:'+id, async()=>{
   const fit=(document.getElementById('auto-fit')||{checked:true}).checked;
   const resolution=(document.getElementById('auto-res')||{value:'source'}).value||'source';
   const translate_mode=(document.getElementById('auto-tr-mode')||{value:'batch'}).value||'batch';
+  const review_backup=(document.getElementById('auto-review-backup')||{value:'off'}).value||'off';
   const zAuto=(document.getElementById('auto-zoom')||{value:'1.12'}).value;
   const zoom=(zAuto==='off'||zAuto==='1.0')?'off':(parseFloat(zAuto)||1.12);
   const motion=!!(document.getElementById('auto-motion')||{checked:true}).checked;
@@ -2265,7 +2271,7 @@ async function runAll(id){ return guardAct('all:'+id, async()=>{
   const brand_logo=(document.getElementById('auto-brand-logo')||{value:'off'}).value||'off';
   const brand=brand_mode!=='off';
   const orig_vol=parseFloat((document.getElementById('auto-ovol')||{value:(audio_mode==='duck_bgm')?'0.22':'0.6'}).value);
-  const body={voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,
+  const body={voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,review_backup,
     zoom,motion,lut,grain,flip,frame,brand,brand_mode,brand_text,brand_logo,vbitrate};
   try{
     const r=await fetch('/api/jobs/'+id+'/run-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

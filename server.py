@@ -458,6 +458,20 @@ def _heal_stale_running(work_dir: Path) -> list[str]:
     # đang OCR hardsub (chưa có ffmpeg/output) → UI hiện "Sẵn sàng" giả.
     if _job_lineage_busy(jid) or _job_proc_alive(jid):
         return []
+    # CLI/out-of-band (run_review_*.py JOBID) — không trong _PROCS nhưng đang sống
+    try:
+        import psutil
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                cmd = " ".join(p.info.get("cmdline") or [])
+            except Exception:  # noqa: BLE001
+                continue
+            if jid and jid in cmd and (
+                "run_review" in cmd or "translate.py" in cmd or "run_review_gpt6" in cmd
+            ):
+                return []
+    except Exception:  # noqa: BLE001
+        pass
     hstrack = work_dir / "_hstrack"
     try:
         if hstrack.is_dir() and next(hstrack.glob("hs_*.jpg"), None) is not None:
@@ -499,6 +513,21 @@ def _heal_stale_running(work_dir: Path) -> list[str]:
             st = m.stage(s) or {}
             if st.get("status") != "running":
                 continue
+            # CLI/out-of-band REVIEW (vd run_review_gpt6_*.py) không vào _PROCS —
+            # đừng hạ pending khi đang soát (review_progress < 100 + updated_at tươi).
+            # Heal nhầm → UI nhảy "Sẵn sàng"/soát % tụt假 (merge3 giữ số cũ).
+            if s == "translate" and st.get("review"):
+                try:
+                    rp = float(st.get("review_progress") or 0)
+                except (TypeError, ValueError):
+                    rp = 0.0
+                try:
+                    upd = float(st.get("updated_at") or 0)
+                except (TypeError, ValueError):
+                    upd = 0.0
+                fresh = upd > 0 and (time.time() - upd) < 900
+                if rp < 100 and fresh:
+                    continue
             prev = dict(st)
             if _stage_complete_on_disk(work_dir, s):
                 keep = {k: v for k, v in prev.items()
@@ -865,6 +894,19 @@ def _clear_stop(job_id: str) -> None:
             (base / job_id / ".stop").unlink(missing_ok=True)
         except Exception:  # noqa: BLE001
             pass
+
+
+def _check_stopped(job_id: str) -> bool:
+    """True nếu user bấm Dừng (in-memory hoặc file .stop)."""
+    if job_id in _STOP_JOBS:
+        return True
+    for base in {WORK_ROOT, Path(r"D:\PinelineV2_work")}:
+        try:
+            if (base / job_id / ".stop").exists():
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+    return False
 
 # Chuỗi BẮT BUỘC (tính % tổng): tải -> nhận diện -> dịch -> lồng tiếng -> ghép/xuất.
 WIRED_STAGES = ["download", "asr", "translate", "tts", "mux"]
@@ -1249,6 +1291,7 @@ class RunAllReq(BaseModel):
     fit: bool = True              # khớp time (nén câu lố cho khớp phim)
     resolution: str = "source"    # source | 1080
     translate_mode: str | None = None  # oneshot | batch | auto
+    review_backup: str | None = None  # off | aurora_parallel (UI backup REVIEW)
     # Cùng opt render như Mux (1-click truyền xuống _do_render)
     flip: str = ""
     zoom: float | str = 1.12
@@ -1287,6 +1330,7 @@ class AgentChatReq(BaseModel):
     allow_mutate: bool = False          # cho phép queue add/stop
     max_steps: int = 8
     require_confirm: bool = False       # Telegram: tool phá huỷ đỗ lại chờ ✅/❌
+    force_first_tool: str | None = None  # Brain: ép gọi tool đầu (vd pineline_status)
 
 
 class AgentConfirmReq(BaseModel):
@@ -1671,15 +1715,59 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
         _run_engine(_asr_script(asr_eng), wd)
         if stopped():
             return
-        run_translate(wd, target=target, mode=translate_mode)
+        try:
+            run_translate(wd, target=target, mode=translate_mode)
+        except Exception as e_tr:  # noqa: BLE001
+            if "stopped by user" in str(e_tr).lower() or stopped():
+                print(f"[auto] {job_id}: DỪNG lúc dịch/soát — không nhảy TTS", flush=True)
+                raise _Stopped(job_id) from e_tr
+            raise
         # TỰ KIỂM TRA missing + coverage ASR (không tin n_missing cũ / script salvage ngắn)
         n_miss = count_script_missing(wd)
         gap = translate_coverage_gap(wd)
         if n_miss > 0 or gap > 0:
             print(f"[auto] {job_id}: dịch còn miss={n_miss} gap={gap} -> vá lô nhỏ")
-            run_translate(wd, batch=25, target=target, mode="batch")
+            try:
+                run_translate(wd, batch=25, target=target, mode="batch")
+            except Exception as e_tr2:  # noqa: BLE001
+                if "stopped by user" in str(e_tr2).lower() or stopped():
+                    print(f"[auto] {job_id}: DỪNG lúc vá dịch — không nhảy TTS", flush=True)
+                    raise _Stopped(job_id) from e_tr2
+                raise
             n_miss = count_script_missing(wd)
             gap = translate_coverage_gap(wd)
+        # Soát dở (còn câu chưa rv) → không TTS khi AUTO_REVIEW bật
+        try:
+            from config import get as _cfg_get
+            _ar = (_cfg_get("AUTO_REVIEW", "1") or "1").strip().lower() in ("1", "true", "yes", "on")
+        except Exception:  # noqa: BLE001
+            _ar = True
+        if _ar:
+            try:
+                rows_chk = json.loads((wd / "script.json").read_text(encoding="utf-8"))
+                n_unrev = sum(1 for r in rows_chk if isinstance(r, dict) and not r.get("rv") and (r.get("vi") or "").strip())
+            except Exception:  # noqa: BLE001
+                n_unrev = -1
+            if n_unrev > 0:
+                print(f"[auto] {job_id}: còn {n_unrev} câu chưa soát (rv) — DỪNG, không TTS", flush=True)
+                try:
+                    m_pend = Manifest(wd)
+                    tr = m_pend.data.setdefault("stages", {}).setdefault("translate", {})
+                    tr.update({
+                        "status": "pending",
+                        "cur_text": f"soát dở — còn {n_unrev} câu chưa rv",
+                        "updated_at": time.time(),
+                    })
+                    m_pend.data["stages"]["translate"] = tr
+                    # đừng để TTS running tiếp
+                    tts = m_pend.data.setdefault("stages", {}).setdefault("tts", {})
+                    if tts.get("status") == "running":
+                        tts["status"] = "pending"
+                        tts["cur_text"] = "chờ soát xong"
+                    m_pend.save()
+                except Exception as e_pend:  # noqa: BLE001
+                    print(f"[auto] {job_id}: stamp review-incomplete: {e_pend}", flush=True)
+                return
         ready, why = translate_ready_for_tts(wd)
         if not ready:
             # TRƯỚC: «TTS sẽ bỏ qua câu thiếu» → nhảy TTS với script dở (vd 398/2698)
@@ -1700,13 +1788,44 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             return
         if stopped():
             return
+        # Second Brain: scan/heal chất lượng VI trước khi TTS
+        try:
+            from agent_quality import scan_and_heal_job
+            qb = scan_and_heal_job(wd, write=True)
+            if int(qb.get("high_open") or 0) > 0 and not (
+                (Manifest(wd).data.get("agent") or {}).get("qa_override")
+            ):
+                m_br = Manifest(wd)
+                agent_br = dict(m_br.data.get("agent") or {})
+                agent_br["hold_after_translate"] = True
+                agent_br["qa_blocked"] = True
+                agent_br["held_at"] = "qa_brain"
+                agent_br["hold_reason"] = (
+                    f"Second Brain: {qb.get('high_open')} high QA — chặn TTS/mux"
+                )
+                m_br.data["agent"] = agent_br
+                tr_br = m_br.data.setdefault("stages", {}).setdefault("translate", {})
+                tr_br["cur_text"] = (
+                    f"HOLD Brain — {qb.get('high_open')} high QA flags"
+                )
+                m_br.save()
+                print(
+                    f"[auto] {job_id}: Second Brain HOLD "
+                    f"(high={qb.get('high_open')}) — bỏ qua TTS/mux",
+                    flush=True,
+                )
+                return
+        except Exception as e_br:  # noqa: BLE001
+            print(f"[auto] {job_id}: brain quality skip: {e_br}", flush=True)
         # Pineline V2 Agent: HOLD sau translate — không TTS đến khi duyệt script
         m_hold = Manifest(wd)
         agent_cfg = m_hold.data.get("agent") or {}
-        if agent_cfg.get("hold_after_translate"):
+        if agent_cfg.get("hold_after_translate") or agent_cfg.get("qa_blocked"):
             agent_cfg = dict(agent_cfg)
-            agent_cfg["held_at"] = "after_translate"
-            agent_cfg["hold_reason"] = "chờ duyệt script (Agent/UI) trước TTS"
+            if not agent_cfg.get("held_at"):
+                agent_cfg["held_at"] = "after_translate"
+            if not agent_cfg.get("hold_reason"):
+                agent_cfg["hold_reason"] = "chờ duyệt script (Agent/UI) trước TTS"
             m_hold.data["agent"] = agent_cfg
             tr = m_hold.data.setdefault("stages", {}).setdefault("translate", {})
             tr["cur_text"] = "HOLD — chờ duyệt script trước TTS"
@@ -3206,6 +3325,22 @@ def _run_stage(job_id: str, stage: str, target: str, force: bool,
     except _Stopped:
         print(f"[stage {stage}] job {job_id}: đã DỪNG theo yêu cầu")
     except Exception as e:  # noqa: BLE001
+        # translate/review raise RuntimeError("stopped by user") — coi như Stop, không fail→TTS
+        if "stopped by user" in str(e).lower() or job_id in _STOP_JOBS:
+            print(f"[stage {stage}] job {job_id}: đã DỪNG theo yêu cầu ({e})")
+            try:
+                m_stop = Manifest(work_dir)
+                st = m_stop.stage(stage) or {}
+                if st.get("status") == "running":
+                    st = dict(st)
+                    st["status"] = "pending"
+                    st["cur_text"] = "đã dừng theo yêu cầu"
+                    st["updated_at"] = time.time()
+                    m_stop.data.setdefault("stages", {})[stage] = st
+                    m_stop.save()
+            except Exception:  # noqa: BLE001
+                pass
+            return
         print(f"[stage {stage}] job {job_id} lỗi: {e}")
         try:
             m_err = Manifest(work_dir)
@@ -5855,8 +5990,19 @@ def _translate_flow(work_dir: Path, target: str, model: str | None,
         if not review_only:
             run_translate(work_dir, batch, target, bool(force), model or None, mode)
         if review_only or review_model:
-            run_review(work_dir, min(40, max(batch, 20)), target, review_model or None)
+            # review_only: force=True để soát lại từ đầu khi user bấm Soát lại
+            run_review(
+                work_dir,
+                min(40, max(batch, 20)),
+                target,
+                review_model or None,
+                force=bool(review_only or force),
+            )
     except Exception as e:  # noqa: BLE001
+        msg = str(e).lower()
+        if "stopped by user" in msg or (work_dir / ".stop").exists():
+            print(f"[translate flow] job {work_dir.name}: DỪNG theo yêu cầu", flush=True)
+            raise
         print(f"[translate flow] job {work_dir.name} lỗi: {e}")
 
 
@@ -5896,6 +6042,7 @@ def retranslate_job(job_id: str, req: TranslateReq):
             ),
             "mode": mode_s,
             "model": req.model,
+            "review_model": req.review_model or st.get("review_model"),
             "updated_at": time.time(),
         })
         m.data["stages"]["translate"] = st
@@ -6287,6 +6434,36 @@ def _start_agent_watch():
             print("[startup] Agent watcher OFF (set AGENT_WATCH=1 để bật)")
     except Exception as e:  # noqa: BLE001
         print(f"[startup] agent watch lỗi: {e}")
+
+
+@app.on_event("startup")
+def _start_agent_brain():
+    """Second Brain — daemon full-silent (ops + quality + infra)."""
+    try:
+        from agent_brain import start_brain
+        hooks = dict(_HEAL_HOOKS)
+        hooks["set_hold"] = _agent_set_hold
+        hooks["set_hold_after_translate"] = _agent_set_hold
+        on = start_brain(WORK_ROOT, hooks=hooks, list_jobs=list_jobs)
+        if on:
+            print("[startup] Second Brain ON (AGENT_BRAIN=1, full silent)")
+        else:
+            print("[startup] Second Brain OFF (set AGENT_BRAIN=1 để bật)")
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] agent brain lỗi: {e}")
+
+
+@app.post("/api/agent/brain/tick")
+def api_agent_brain_tick():
+    """Chạy 1 tick Second Brain thủ công (ops/debug)."""
+    try:
+        from agent_brain import brain_once
+        hooks = dict(_HEAL_HOOKS)
+        hooks["set_hold"] = _agent_set_hold
+        hooks["set_hold_after_translate"] = _agent_set_hold
+        return brain_once(WORK_ROOT, hooks=hooks, list_jobs=list_jobs)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @app.get("/api/models")

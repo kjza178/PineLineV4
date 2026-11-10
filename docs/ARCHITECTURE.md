@@ -13,6 +13,7 @@ flowchart LR
     AG[agent_core<br/>/api/agent/chat] --> TOOLS[tools: job, queue, config, hongguo, av_sync, heal]
     HG[hongguo_bridge<br/>merge queue thread]
     W[agent_watch<br/>nếu AGENT_WATCH=1]
+    B[agent_brain hybrid<br/>rules + LLM tool-loop]
     RF[routes_films + routes_hg meta]
   end
   subgraph S8802["agent_tele_cmd.py :8802 (sidecar)"]
@@ -41,7 +42,7 @@ flowchart LR
 |---|---|
 | Server / routes | `server`, `config`, `hongguo_bridge`, `routes_ui`, `routes_hg`, `routes_agent`, `routes_films`, `routes_uploader_settings` |
 | Pipeline | `download` → `asr*` / `fun_asr_nano` / `nano_fa_asr` / … → `translate` / `llm` / `series_glossary` → `clone_tts` → `assemble` → `render` / `render_fx` / `sfx_lib` / `mux` / `subs` / `media_ts` / `split_parts` / `job_queue` / `batch_config` |
-| Agent (server + shared) | `agent_core`, `agent_hongguo`, `agent_heal`, `agent_watch`, `agent_qa_gate`, `agent_name_pass`, `agent_av_sync`, `agent_error_class`, `agent_stage_io` |
+| Agent (server + shared) | `agent_core` (tool-loop + `force_first_tool`), `agent_hongguo`, `agent_heal`, `agent_watch`, `agent_brain` + `agent_brain_context` (Second Brain hybrid), `agent_quality`, `agent_qa_gate`, `agent_name_pass`, `agent_av_sync`, `agent_error_class`, `agent_stage_io` |
 | Sidecar / publish | `agent_tele_cmd`, `agent_autopilot`, `agent_feeder`, `film_db`, `auto_publisher`, `meta_studio`, `canva_client`, `preset_switcher` |
 | Ops | `restart_server`, `migrate_work`, `lib_check`, `app_desktop` |
 

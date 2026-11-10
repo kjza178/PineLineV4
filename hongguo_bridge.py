@@ -2306,6 +2306,12 @@ def fetch_poster(name: str, base: str = DEFAULT_BASE) -> tuple[bytes, str]:
     name = (name or "").strip()
     if not name:
         raise RuntimeError("thiếu name")
+    try:
+        from film_db import is_junk_hg_name
+        if is_junk_hg_name(name):
+            raise FileNotFoundError("không có poster")
+    except ImportError:
+        pass
     # 1) API Downloader (có token)
     try:
         url = (
@@ -2332,7 +2338,7 @@ def fetch_poster(name: str, base: str = DEFAULT_BASE) -> tuple[bytes, str]:
             ".png": "image/png", ".webp": "image/webp",
         }.get(suf, "image/jpeg")
         return p.read_bytes(), media
-    raise RuntimeError("không có poster")
+    raise FileNotFoundError("không có poster")
 
 
 _IMG_CACHE: dict[str, tuple[float, bytes, str]] = {}

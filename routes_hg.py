@@ -699,19 +699,36 @@ def hg_img(url: str | None = None, u: str | None = None, base: str | None = None
 
 @router.get("/api/hg/poster")
 def hg_poster(name: str, base: str | None = None):
-    """Poster thư viện: /dl/poster (auth) hoặc file local poster.jpg."""
+    """Poster thư viện: /dl/poster (auth) hoặc file local poster.jpg.
+
+    Thiếu poster → 404 (không 502). Tên junk (job_id / downloads) cũng 404,
+    tránh spam Bad Gateway khi Films UI dùng hg_name sai.
+    """
     import importlib
     import hongguo_bridge as hg
     hg = importlib.reload(hg)
-    if not (name or "").strip():
+    name = (name or "").strip()
+    if not name:
         return JSONResponse({"error": "thiếu name"}, status_code=400)
     try:
-        data, ctype = hg.fetch_poster(name.strip(), _hg_base(base))
+        from film_db import is_junk_hg_name
+        if is_junk_hg_name(name):
+            return JSONResponse({"error": "không có poster", "name": name}, status_code=404)
+    except Exception:
+        pass
+    try:
+        data, ctype = hg.fetch_poster(name, _hg_base(base))
         return Response(content=data, media_type=ctype, headers={
             "Cache-Control": "public, max-age=3600",
         })
+    except FileNotFoundError as e:
+        return JSONResponse({"error": str(e) or "không có poster"}, status_code=404)
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=502)
+        msg = str(e) or "poster error"
+        # «không có poster» = thiếu file/API — 404; lỗi mạng/auth thật → 502
+        if "không có poster" in msg.lower() or "not found" in msg.lower():
+            return JSONResponse({"error": msg}, status_code=404)
+        return JSONResponse({"error": msg}, status_code=502)
 
 
 @router.post("/api/hg/merge")

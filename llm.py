@@ -420,7 +420,7 @@ def chatgpt_chat_with_file(
     temperature: float = 0.1,
     max_tokens: int = 8192,
     json_mode: bool = True,
-    timeout: int = 300,
+    timeout: int = 900,
     base: str | None = None,
     account_id: str | None = None,
 ) -> str:
@@ -429,6 +429,13 @@ def chatgpt_chat_with_file(
     BẮT BUỘC cùng host Aurora với bước upload. Gửi X-Aurora-Account-Id nếu có
     (Aurora sticky cùng session đã upload — nếu không GPT sẽ báo không đọc được file).
     """
+    try:
+        cfg_t = int(_cfg_get("CHATGPT_TIMEOUT", "900") or 900)
+    except Exception:
+        cfg_t = 900
+    cfg_t = max(180, min(cfg_t, 1800))
+    timeout = max(int(timeout or 0), cfg_t)
+    timeout = max(180, min(timeout, 1800))
     bases, key, default_m = _chatgpt_settings()
     if base:
         b = base.rstrip("/")
@@ -641,10 +648,20 @@ def chat(
         return _ollama_chat(m, messages, temperature, max_tokens, json_mode, retries, timeout)
 
     if is_chatgpt(m):
-        # Pass ngắn (name/pronoun/meta) qua pool Free trên Aurora — không đụng TRANSLATE bulk.
+        # Local :3377 có thể 5–15 phút/lô — không cắt cứng 120s (client abort → proxy wsasend).
+        try:
+            cfg_t = int(_cfg_get("CHATGPT_TIMEOUT", "900") or 900)
+        except Exception:
+            try:
+                cfg_t = int(os.getenv("CHATGPT_TIMEOUT") or "900")
+            except Exception:
+                cfg_t = 900
+        cfg_t = max(180, min(cfg_t, 1800))
+        t_chat = max(int(timeout or 0), cfg_t)
+        t_chat = max(180, min(t_chat, 1800))
         return _chatgpt_chat(
             m, messages, temperature, max_tokens, json_mode,
-            retries=min(retries, 3), timeout=min(timeout, 120),
+            retries=min(retries, 3), timeout=t_chat,
         )
 
     # Nhận diện tự động nếu gọi vào llama-server :8083

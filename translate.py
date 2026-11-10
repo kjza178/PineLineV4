@@ -65,6 +65,32 @@ def _rmodel() -> str | None:
     return _cfg_get("REVIEW_MODEL") or _tmodel()
 
 
+def _resolve_review_model(
+    work_dir: str | Path | None = None,
+    model: str | None = None,
+) -> str | None:
+    """REVIEW model thật: arg → (queue_opts backup Aurora) → REVIEW_MODEL.
+
+    UI «backup Aurora∥» trước đây chỉ ghi queue_opts, không đổi model — giờ
+    aurora_parallel ép dùng AURORA_REVIEW_MODEL / REVIEW_MODEL (chatgpt/…).
+    """
+    if model:
+        return model
+    if work_dir is not None:
+        try:
+            from manifest import Manifest
+            qo = (Manifest(Path(work_dir)).data.get("queue_opts") or {})
+            if str(qo.get("review_backup") or "").strip().lower() == "aurora_parallel":
+                return (
+                    _cfg_get("AURORA_REVIEW_MODEL")
+                    or _cfg_get("REVIEW_MODEL")
+                    or "chatgpt/gpt-6"
+                )
+        except Exception:  # noqa: BLE001
+            pass
+    return _rmodel()
+
+
 def _is_llama_local_model(m: str | None) -> bool:
     if not m:
         return False
@@ -86,8 +112,9 @@ def _meaning_rules() -> str:
     return (
         "NGHĨA & NGỮ CẢNH (quan trọng):\n"
         "- Ưu tiên NGHĨA THOẠI trong cảnh, không dịch từng chữ.\n"
-        "- Thành ngữ / châm biếm / đá xoáy phải dịch ĐÚNG Ý tiếng Việt thông dụng, "
-        "không dịch đen. Ví dụ: 吃醋 ≈ «ghen», không «uống giấm»; "
+        "- Thành ngữ / châm biếm / đá xoáy phải dịch ĐÚNG Ý tiếng Việt thông dụng. "
+        "Ví dụ: 吃醋 thường là «ghen»; «uống giấm» hoặc biến thể tự nhiên vẫn có thể đúng "
+        "nếu ngữ cảnh cố ý chơi chữ — không coi riêng cách nói này là lỗi cứng; "
         "打天下 ≈ «đánh thiên hạ / dựng nghiệp», KHÔNG «đánh hạ thiên hạ».\n"
         "- 脑子进水: nếu câu trước/chiêu có 水·Thủy·úng (vd Thánh Trảm Thủy Mộng, "
         "盛产水) → GIỮ đòn chữ «úng nước / não úng nước»; "
@@ -173,6 +200,9 @@ def _style_rules() -> str:
         "câu thoại vẫn tự nhiên, không sến.\n"
         "- Mục tiêu: nghe đúng thể loại, còn màu Trung (Hán Việt đúng chỗ), thoại trôi — "
         "không nặng Hán Việt toàn bài; không calque máy.\n"
+        "- Thành ngữ hay calque (bắt buộc): 没大没小 → «không biết trên dưới» / "
+        "«không biết lớn biết nhỏ» / «vô lễ». "
+        "CẤM «chưa lớn không nhỏ» / «lớn không nhỏ» (dịch từng chữ — vô nghĩa).\n"
     )
 
 
@@ -620,10 +650,10 @@ def _build_plan_from_file(
     else:
         use_model = plan_cfg
     try:
-        timeout = int(_cfg_get("PLAN_FILE_TIMEOUT", "180") or 180)
+        timeout = int(_cfg_get("PLAN_FILE_TIMEOUT") or _cfg_get("CHATGPT_TIMEOUT", "900") or 900)
     except ValueError:
-        timeout = 180
-    timeout = max(60, min(timeout, 420))
+        timeout = 900
+    timeout = max(180, min(timeout, 1800))
     out = chatgpt_chat_with_file(
         file_id,
         prompt,
@@ -1055,6 +1085,12 @@ _DEFAULT_STYLE_TERMS: list[dict] = [
     {"zh": "眼馋", "vi": "thèm muốn / thèm đến chảy nước miếng", "type": "style"},
     {"zh": "好大力气", "vi": "khó khăn lắm / tốn công lắm (KHÔNG «tốn rất nhiều công sức»)", "type": "style"},
     {"zh": "废什么话", "vi": "phí lời làm gì / nói làm gì", "type": "style"},
+    # 没大没小 = vô lễ / không biết trên dưới — CẤM calque «chưa lớn không nhỏ»
+    {
+        "zh": "没大没小",
+        "vi": "không biết trên dưới / không biết lớn biết nhỏ (CẤM «chưa lớn không nhỏ»)",
+        "type": "style",
+    },
 ]
 
 
@@ -1244,6 +1280,109 @@ def normalize_vi_thousands(text: str) -> str:
     return t
 
 
+def heal_obvious_internal_stutter(text: str) -> str:
+    """Gỡ một nhịp lặp ASR rõ ràng, không diễn giải hay viết lại câu.
+
+    Chỉ đụng cụm Hán ngữ stutter thường gặp hoặc cụm từ VI >=2 từ lặp sát nhau;
+    lặp một từ đơn có thể là nhấn giọng nên được giữ nguyên.
+    """
+    raw = text or ""
+    if not raw.strip():
+        return raw
+    lead = raw[: len(raw) - len(raw.lstrip())]
+    trail = raw[len(raw.rstrip()):]
+    body = raw.strip()
+    m = re.match(r"^(.*?)([，,。.!！？?…]+)?$", body)
+    core = (m.group(1) if m else body).strip()
+    punct = (m.group(2) if m else "") or ""
+    if not core:
+        return raw
+
+    # Hai nửa Hán ngữ giống hệt nhau (不对不对). Bỏ qua tượng thanh/tiếng cười
+    # (叮当叮当、哈哈哈哈) — clean_zh_spam / Gemma xử lý; không cắt mù.
+    _ONOMAT_CHARS = set("哈呵嘿嘻哇咚砰啪啊嗯呃呜叮当")
+    if len(core) % 2 == 0 and 2 <= len(core) // 2 <= 12:
+        half = core[: len(core) // 2]
+        if half == core[len(core) // 2:]:
+            if half and all(c in _ONOMAT_CHARS for c in half):
+                return raw
+            return lead + half + punct + trail
+    # Nội câu chỉ tự động với mẫu xưng hô đã gặp trong ASR thật; các lặp nhấn giọng
+    # như 不是不是 / 师父师父 có thể có chủ ý nên để Gemma xét theo ngữ cảnh.
+    for phrase in ("属下",):
+        doubled = phrase + phrase
+        if doubled in core:
+            return lead + core.replace(doubled, phrase, 1) + punct + trail
+
+    # Cụm VI từ hai từ trở lên lặp sát nhau: “Không đúng không đúng”.
+    words = list(re.finditer(r"[A-Za-zÀ-ỹĐđ0-9]+", core))
+    lowered = [w.group(0).casefold() for w in words]
+    for width in range(min(8, len(words) // 2), 1, -1):
+        for start in range(0, len(words) - width * 2 + 1):
+            if lowered[start:start + width] != lowered[start + width:start + width * 2]:
+                continue
+            cut_start = words[start + width].start()
+            cut_end = words[start + width * 2 - 1].end()
+            healed = (core[:cut_start].rstrip() + core[cut_end:]).strip()
+            return lead + healed + punct + trail
+    return raw
+
+
+def apply_asr_stutter_heal(rows: list[dict]) -> int:
+    """Heal only deterministic internal ASR repeats; preserve manual rows."""
+    n = 0
+    for row in rows:
+        if not isinstance(row, dict) or row.get("manual"):
+            continue
+        changed = False
+        for key in ("zh", "vi"):
+            old = str(row.get(key) or "")
+            new = heal_obvious_internal_stutter(old)
+            if new != old:
+                row[key] = new
+                changed = True
+        if changed:
+            n += 1
+    if n:
+        print(f"[asr-heal] gỡ stutter nội bộ {n} câu", flush=True)
+    return n
+
+
+def apply_halfcue_dangling_heal(rows: list[dict]) -> int:
+    """Gỡ đuôi treo VI khi ASR cắt ý sang cue sau (之前。 / trước đó.).
+
+    Ví dụ: «Tôi cũng vậy, trước đó.» + cue sau bắt đầu 之前… → «Tôi cũng vậy.»
+    Không viết lại toàn câu; chỉ cắt đuôi treo rõ.
+    """
+    n = 0
+    ordered = [r for r in rows if isinstance(r, dict)]
+    hang_vi = re.compile(r"(?i)(,)?\s*trước đó\s*[.。…]*$")
+    for idx, row in enumerate(ordered):
+        if row.get("manual"):
+            continue
+        zh = str(row.get("zh") or "").strip()
+        vi = str(row.get("vi") or "").strip()
+        if not vi or not hang_vi.search(vi):
+            continue
+        nxt_zh = ""
+        if idx + 1 < len(ordered):
+            nxt_zh = str(ordered[idx + 1].get("zh") or "").strip()
+        cut_zh = bool(re.search(r"之前[，,。.!？…]*$", zh)) and (
+            nxt_zh.startswith("之前") or not nxt_zh
+        )
+        # cũng cắt nếu VI đuôi «trước đó» mà ZH không có nội dung sau 之前
+        if cut_zh or (re.search(r"之前[，,。.!？…]*$", zh) and len(re.findall(r"[\u4e00-\u9fff]", zh)) <= 8):
+            new_vi = hang_vi.sub("", vi).rstrip(" ,，")
+            if new_vi and not new_vi.endswith((".", "!", "?", "…", "。")):
+                new_vi += "."
+            if new_vi and new_vi != vi:
+                row["vi"] = new_vi
+                n += 1
+    if n:
+        print(f"[halfcue-heal] gỡ đuôi treo {n} câu", flush=True)
+    return n
+
+
 def apply_style_polish(rows: list[dict], plan: dict | None = None) -> int:
     """Post-pass deterministic: sửa calque / văn mẫu thường gặp (mixed short-drama).
 
@@ -1323,6 +1462,37 @@ def apply_style_polish(rows: list[dict], plan: dict | None = None) -> int:
                 if "làm gì" not in new:
                     new = new.replace("phí lời với thằng nhóc này",
                                       "phí lời với thằng nhóc này làm gì")
+        # 没大没小 — NMT hay calque «chưa lớn không nhỏ» (vô nghĩa)
+        if "没大没小" in zh:
+            import re
+            if re.search(
+                r"(?i)(chưa\s+)?lớn\s+không\s+nhỏ|không\s+lớn\s+không\s+nhỏ|"
+                r"lớn\s+chưa\s+nhỏ|chưa\s+lớn\s+chưa\s+nhỏ",
+                new,
+            ):
+                new2 = re.sub(
+                    r"(?i)(còn\s+)?(chưa\s+)?lớn\s+không\s+nhỏ",
+                    "còn không biết trên dưới",
+                    new,
+                    count=1,
+                )
+                new2 = re.sub(
+                    r"(?i)không\s+lớn\s+không\s+nhỏ|lớn\s+chưa\s+nhỏ|chưa\s+lớn\s+chưa\s+nhỏ",
+                    "không biết trên dưới",
+                    new2,
+                    count=1,
+                )
+                new2 = re.sub(r"(?i)\bcòn\s+còn\s+", "còn ", new2)
+                new2 = re.sub(r"\s{2,}", " ", new2).strip()
+                if new2 and new2[-1] not in ".!?…":
+                    new2 += "."
+                # «à.» tự nhiên hơn «.» khi trách móc ngắn
+                if re.fullmatch(
+                    r"(?i)(cậu|mày|em|anh|ngươi|người)\s+còn\s+không biết trên dưới\.",
+                    new2,
+                ):
+                    new2 = new2[:-1] + " à."
+                new = new2
         if "一股奇怪的力量" in zh and "luồng sức mạnh kỳ lạ" in new:
             new = new.replace("luồng sức mạnh kỳ lạ", "luồng lực kỳ lạ")
         # gọn câu mở đầu hay gặp
@@ -1485,6 +1655,8 @@ def apply_style_polish(rows: list[dict], plan: dict | None = None) -> int:
         if new != vi:
             r["vi"] = new
             n += 1
+    n += apply_asr_stutter_heal(rows)
+    n += apply_halfcue_dangling_heal(rows)
     if n:
         print(f"[style] polish {n} câu (calque/văn mẫu)", flush=True)
     try:
@@ -1759,7 +1931,7 @@ def translate_batch(rows: list[dict], plan_block: str, prev_ctx: list[dict],
         f"Bạn là BIÊN DỊCH KỊCH BẢN PHIM {target} CHUYÊN NGHIỆP (LƯỢT 1: CHUẨN XÁC NGỮ CẢNH & NGHĨA THOẠI).\n"
         "MỤC TIÊU DUY NHẤT: Dịch ĐÚNG NGHĨA kịch bản, ĐÚNG NHÂN VẬT ĐANG NÓI theo Phân cảnh, ĐÚNG VAI VẾ XƯNG HÔ.\n"
         "1. BÁM SÁT [NGỮ CẢNH PHÂN CẢNH HIỆN TẠI]: Nắm chắc bối cảnh, tình huống mâu thuẫn, ai đang nói với ai (kẻ thù đối đầu, sư đồ, đồng đội hay hệ thống).\n"
-        "2. TUYỆT ĐỐI KHÔNG DỊCH ĐEN / TỪ ĐIỂN THÔ: Thoát ý các câu thành ngữ, tiếng lóng, hàm ý mỉa mai của tiếng Trung (vd: 吃醋 -> ghen; 打天下 -> dựng nghiệp; 脑子进水 -> não úng nước/có vấn đề).\n"
+        "2. KHÔNG DỊCH MÁY MÓC: Thoát ý thành ngữ/tiếng lóng theo cảnh (vd: 吃醋 thường là ghen, nhưng «uống giấm» tự nhiên/chơi chữ vẫn có thể đúng; 打天下 -> dựng nghiệp; 脑子进水 -> não úng nước/có vấn đề; 没大没小 -> không biết trên dưới / không biết lớn biết nhỏ — CẤM «chưa lớn không nhỏ»).\n"
         "3. ĐẠI TỪ XƯNG HÔ NHẤT QUÁN: Bám chắc ma trận who→to. Cùng một cặp phải giữ đúng self/call đã chốt. CẤM nhảy anh–em ↔ ông–tôi / cậu–tôi trong cùng đoạn. CẤM Ta/Ngươi nếu đô thị/mixed; CẤM đảo ('Đến lượt ngươi' ≠ 'Đến lượt ta').\n"
         "4. THUẬT NGỮ CỨNG & SỐ LƯỢNG: Giữ đúng tên nhân vật, chiêu thức Hán Việt oai phong, giữ đúng số 万/亿/兆 (vạn = 10 000, ức = 100 triệu).\n"
         "5. Giữ nguyên chỉ số i, ĐỦ SỐ CÂU, không bỏ dòng. Câu cực ngắn (ừ, được rồi) vẫn dịch ĐÚNG câu đó.\n"
@@ -1870,19 +2042,280 @@ def _style_voice_banner(plan: dict | None) -> str:
             mode = ""
         genre = str(plan.get("genre") or "")
         tone = str(plan.get("tone") or "")
-        if not (mode or genre or tone):
+        p1 = plan.get("review_pass1") if isinstance(plan.get("review_pass1"), dict) else {}
+        brief = str(p1.get("style_brief") or lock.get("review_brief") or "").strip()
+        if not (mode or genre or tone or brief):
             return ""
         lines = [
-            "=== RÀ NMT TỐI THIỂU ===",
+            "=== RÀ NMT + MẠCH VI ===",
             "NMT là bản chính — GIỮ khi đã đúng nghĩa/tên; đừng polish đồng nghĩa.",
-            "Phim có thể đô thị ↔ tu tiên: không ép một thanh ngữ cả phim.",
-            "Chỉ vá: tên/lock sai, nghĩa ngược ZH, Hán thô, quá dài TTS.",
+            "Phim có thể đô thị ↔ tu tiên/huyền huyễn: bám genre/tone plan, "
+            "không ép một thanh ngữ cả phim.",
+            "Khi PHẢI sửa: viết VI tự nhiên như thoại phụ đề Donghua — đúng sắc thái/"
+            "mỉa mai/uy quyền; xưng hô khớp thân phận; không máy móc từng chữ.",
+            "Vá: tên/lock sai, nghĩa ngược ZH, Hán thô, quá dài TTS, stutter ASR,",
+            "VÀ câu VI vô nghĩa / nửa câu / đuôi treo (duty F) theo brief Pass1.",
         ]
         if mode or genre or tone:
             lines.append(f"gợi ý plan: mode={mode or '?'} | genre={genre} | tone={tone}")
+        if brief:
+            lines.append(f"Pass1 style_brief: {brief[:400]}")
+        bad = p1.get("nonsense_i") or []
+        if isinstance(bad, list) and bad:
+            sample = ",".join(str(x) for x in bad[:40])
+            lines.append(f"Pass1 flag vô nghĩa/nửa câu i=[{sample}]")
         return "\n".join(lines) + "\n"
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _ts_srt(sec: float) -> str:
+    if sec < 0:
+        sec = 0.0
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    ms = int(round((sec - int(sec)) * 1000))
+    if ms >= 1000:
+        s += 1
+        ms = 0
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def write_review_pair_srt(work_dir: Path, rows: list[dict], name: str = "sub.review_pair.srt") -> Path:
+    """SRT ZH+VI có tag [i=N] để Pass1 đọc full mạch thoại."""
+    work_dir = Path(work_dir)
+    blocks: list[str] = []
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict) or "i" not in r:
+            continue
+        try:
+            i = int(r["i"])
+        except (TypeError, ValueError):
+            continue
+        zh = str(r.get("zh") or "").replace("\n", " ").strip()
+        vi = str(r.get("vi") or "").replace("\n", " ").strip()
+        if not zh and not vi:
+            continue
+        try:
+            st = float(r.get("start") or 0)
+            en = float(r.get("end") or (st + 1.5))
+        except (TypeError, ValueError):
+            st, en = float(n) * 2.0, float(n) * 2.0 + 1.5
+        n += 1
+        body = f"[i={i}] ZH: {zh} | VI: {vi}"
+        blocks.append(f"{n}\n{_ts_srt(st)} --> {_ts_srt(en)}\n{body}\n")
+    path = work_dir / name
+    path.write_text("\n".join(blocks), encoding="utf-8")
+    return path
+
+
+def _heuristic_nonsense_flags(rows: list[dict]) -> list[int]:
+    """Bắt đuôi treo / nửa câu VI rõ (bổ sung Pass1)."""
+    hang = re.compile(
+        r"(?i)(trước đó|sau đó|nhưng|và|thì|là|của|với|cho|ở|tới|đến|nên|vì|nếu)\s*[.。…]*$"
+    )
+    # Calque thành ngữ: 没大没小 → «chưa lớn không nhỏ» (vô nghĩa)
+    meidameixiao_calque = re.compile(
+        r"(?i)(chưa\s+)?lớn\s+không\s+nhỏ|không\s+lớn\s+không\s+nhỏ|"
+        r"lớn\s+chưa\s+nhỏ|chưa\s+lớn\s+chưa\s+nhỏ"
+    )
+    dangling_zh = ("，", ",", "、", "…")
+    out: list[int] = []
+    ordered = [r for r in rows if isinstance(r, dict) and "i" in r]
+    for idx, r in enumerate(ordered):
+        try:
+            i = int(r["i"])
+        except (TypeError, ValueError):
+            continue
+        vi = str(r.get("vi") or "").strip()
+        zh = str(r.get("zh") or "").strip()
+        if not vi:
+            continue
+        if "没大没小" in zh and meidameixiao_calque.search(vi):
+            out.append(i)
+            continue
+        words = re.findall(r"[A-Za-zÀ-ỹĐđ0-9]+", vi)
+        if hang.search(vi) and len(words) <= 8:
+            out.append(i)
+            continue
+        if zh.endswith(dangling_zh) and len(words) <= 6:
+            out.append(i)
+            continue
+        if idx + 1 < len(ordered):
+            nxt = str(ordered[idx + 1].get("zh") or "")
+            # ZH hiện kết bằng «之前。» / «之前，» rồi cue sau mở «之前…»
+            if re.search(r"之前[，,。.!？]?$", zh) and nxt.startswith("之前"):
+                out.append(i)
+    return sorted(set(out))
+
+
+def run_review_pass1_full_vi(
+    work_dir: Path,
+    rows: list[dict],
+    plan: dict | None,
+    *,
+    model: str | None = None,
+) -> dict:
+    """Pass1: đọc TOÀN BỘ SRT ZH+VI → style_brief + flag câu vô nghĩa/nửa câu.
+
+    Ưu tiên upload file (ChatGPT/Aurora :3377) giống PLAN_MODE=file.
+    Fallback: chat local/cloud với bản text rút gọn nếu upload lỗi.
+    """
+    work_dir = Path(work_dir)
+    plan = plan if isinstance(plan, dict) else {}
+    enabled = (_cfg_get("REVIEW_PASS1_FULL_VI", "1") or "1").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if not enabled:
+        return plan
+
+    flags = _heuristic_nonsense_flags(rows)
+    srt_path = write_review_pair_srt(work_dir, rows)
+    n_lines = sum(1 for r in rows if isinstance(r, dict) and (r.get("vi") or r.get("zh")))
+    print(f"[review-pass1] đọc full pair SRT ({n_lines} câu) → {srt_path.name}", flush=True)
+
+    prompt = (
+        "Bạn là biên tập phụ đề Việt. File đính kèm = TOÀN BỘ cặp ZH|VI (mỗi cue có [i=N]).\n"
+        "ĐỌC HẾT mạch thoại — không đoán từ vài câu.\n"
+        "Nhiệm vụ: (1) tóm style_brief văn phong VI nên giữ; "
+        "(2) liệt kê i các câu VI VÔ NGHĨA / nửa câu / đuôi treo do ASR cắt "
+        "(vd «Tôi cũng vậy, trước đó.» rồi câu sau mới có nội dung); "
+        "(3) half_cue_pairs = cặp [i_a,i_b] nên đọc cùng nhau để thành ý đủ.\n"
+        "KHÔNG viết lại toàn bộ phụ đề. CHỈ trả JSON:\n"
+        '{"style_brief":"...", "register":"toi-cau|mixed|ancient-ta-nguoi|?", '
+        '"nonsense_i":[int...], "half_cue_pairs":[[int,int],...], "notes":["..."]}\n'
+    )
+
+    data: dict = {}
+    use_model = (
+        model
+        or (_cfg_get("REVIEW_PASS1_MODEL") or "").strip()
+        or (_cfg_get("PLAN_MODEL") or "chatgpt/gpt-5-6-mini").strip()
+    )
+    try:
+        timeout = int(_cfg_get("REVIEW_PASS1_TIMEOUT") or _cfg_get("CHATGPT_TIMEOUT", "900") or 900)
+    except ValueError:
+        timeout = 900
+    timeout = max(120, min(timeout, 1800))
+
+    # Phim dài (vd 3900 cue): upload full SRT dễ treo/timeout → dùng sample+heuristic.
+    try:
+        max_up = int(_cfg_get("REVIEW_PASS1_MAX_UPLOAD", "800") or 800)
+    except ValueError:
+        max_up = 800
+    use_upload = n_lines <= max(100, max_up)
+    if use_upload:
+        try:
+            from llm import aurora_upload_file, chatgpt_chat_with_file
+            up = aurora_upload_file(srt_path, purpose="assistants")
+            out = chatgpt_chat_with_file(
+                up["id"],
+                prompt,
+                model=use_model if str(use_model).lower().startswith(("chatgpt/", "aurora/")) else f"chatgpt/{use_model.split('/')[-1]}",
+                temperature=0.1,
+                max_tokens=4096,
+                json_mode=True,
+                timeout=timeout,
+                base=up.get("base"),
+                account_id=up.get("account_id") or None,
+            )
+            parsed = parse_json(out) if out else {}
+            if isinstance(parsed, dict) and not parsed.get("error"):
+                data = parsed
+        except Exception as e:  # noqa: BLE001
+            print(f"[review-pass1] upload/file lỗi ({e}) → fallback text", flush=True)
+    else:
+        print(
+            f"[review-pass1] skip upload ({n_lines} câu > {max_up}) → sample+heuristic",
+            flush=True,
+        )
+
+    if not data:
+        # Fallback: gửi tối đa ~120 cue (đầu/giữa/cuối + heuristic flags)
+        ordered = [r for r in rows if isinstance(r, dict) and "i" in r]
+        pick_idx = set(range(min(40, len(ordered))))
+        if len(ordered) > 80:
+            mid = len(ordered) // 2
+            pick_idx.update(range(mid - 20, mid + 20))
+            pick_idx.update(range(max(0, len(ordered) - 40), len(ordered)))
+        for i in flags:
+            for j, r in enumerate(ordered):
+                try:
+                    if int(r["i"]) == int(i):
+                        pick_idx.update(range(max(0, j - 1), min(len(ordered), j + 2)))
+                except (TypeError, ValueError):
+                    pass
+        sample = []
+        for j in sorted(pick_idx):
+            if 0 <= j < len(ordered):
+                r = ordered[j]
+                sample.append(
+                    f"[i={r.get('i')}] ZH: {str(r.get('zh') or '')[:80]} | "
+                    f"VI: {str(r.get('vi') or '')[:100]}"
+                )
+        try:
+            out2 = chat(
+                [
+                    {"role": "system", "content": "Biên tập phụ đề VI. CHỈ JSON."},
+                    {"role": "user", "content": prompt + "\nMẫu cues:\n" + "\n".join(sample)},
+                ],
+                model=_rmodel(),
+                temperature=0.1,
+                json_mode=True,
+                max_tokens=3072,
+            )
+            parsed = parse_json(out2) if out2 else {}
+            if isinstance(parsed, dict):
+                data = parsed
+        except Exception as e2:  # noqa: BLE001
+            print(f"[review-pass1] fallback chat lỗi: {e2}", flush=True)
+            data = {}
+
+    if not isinstance(data, dict):
+        data = {}
+    nonsense = []
+    for x in (data.get("nonsense_i") or []):
+        try:
+            nonsense.append(int(x))
+        except (TypeError, ValueError):
+            pass
+    nonsense = sorted(set(nonsense) | set(flags))
+    pairs = []
+    for p in (data.get("half_cue_pairs") or []):
+        if isinstance(p, (list, tuple)) and len(p) >= 2:
+            try:
+                pairs.append([int(p[0]), int(p[1])])
+            except (TypeError, ValueError):
+                pass
+    brief = str(data.get("style_brief") or "").strip()
+    register = str(data.get("register") or "").strip()
+    p1 = {
+        "style_brief": brief,
+        "register": register,
+        "nonsense_i": nonsense,
+        "half_cue_pairs": pairs,
+        "notes": data.get("notes") if isinstance(data.get("notes"), list) else [],
+        "model": use_model,
+        "n_lines": n_lines,
+        "heuristic_flags": flags,
+    }
+    plan["review_pass1"] = p1
+    lock = plan.get("style_lock") if isinstance(plan.get("style_lock"), dict) else {}
+    if brief:
+        lock["review_brief"] = brief[:500]
+    if register and not lock.get("default_register"):
+        lock["default_register"] = register
+    plan["style_lock"] = lock
+    (work_dir / "review_pass1.json").write_text(
+        json.dumps(p1, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(
+        f"[review-pass1] brief={bool(brief)} | nonsense_i={len(nonsense)} | pairs={len(pairs)}",
+        flush=True,
+    )
+    return plan
 
 
 def _style_exemplars(plan: dict | None, rows_pool: list[dict] | None, limit: int = 5) -> str:
@@ -1923,6 +2356,50 @@ def _style_exemplars(plan: dict | None, rows_pool: list[dict] | None, limit: int
         return ""
 
 
+
+_PRONOUN_MASK_RE = re.compile(
+    r"(?<!\w)(Ngươi|ngươi|chúng ta|Chúng ta|"
+    r"Tôi|tôi|Tao|tao|Tớ|tớ|Mình|mình|Ta|ta|"
+    r"Cậu|cậu|Mày|mày|Anh|anh|Em|em|Chị|chị|"
+    r"Ông|ông|Bà|bà|Bạn|bạn)(?!\w)"
+)
+
+
+def _review_pronoun_mask_on() -> bool:
+    try:
+        return (_cfg_get("REVIEW_PRONOUN_MASK", "1") or "1").strip().lower() in (
+            "1", "true", "yes", "on",
+        )
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _mask_pronouns_vi(vi: str) -> tuple[str, list[str]]:
+    toks: list[str] = []
+
+    def repl(m: re.Match) -> str:
+        toks.append(m.group(1))
+        return f"⟦P{len(toks) - 1}⟧"
+
+    return _PRONOUN_MASK_RE.sub(repl, vi or ""), toks
+
+
+def _unmask_pronouns_vi(text: str, toks: list[str]) -> str:
+    out = text or ""
+    for i, t in enumerate(toks):
+        out = out.replace(f"⟦P{i}⟧", t).replace(f"[P{i}]", t)
+    return out
+
+
+def _pronoun_forms(vi: str) -> set[str]:
+    low = (vi or "").lower()
+    out = set()
+    for f in ("tôi", "ta", "tao", "cậu", "ngươi", "anh", "em", "mày", "ông", "chúng ta"):
+        if re.search(rf"(?<!\w){re.escape(f)}(?!\w)", low):
+            out.add(f)
+    return out
+
+
 def review_batch(rows: list[dict], plan_block: str, prev_ctx: list[dict],
                  target: str = "Tiếng Việt", model: str | None = None,
                  plan: dict | None = None,
@@ -1945,20 +2422,39 @@ def review_batch(rows: list[dict], plan_block: str, prev_ctx: list[dict],
     except Exception:  # noqa: BLE001
         voice, exemplars = "", ""
     sys = (
-        f"Bạn là biên tập viên TỐI THIỂU cho phụ đề {target} (LƯỢT 2: chỉ vá lỗi NMT).\n"
+        f"Bạn là biên tập phụ đề Donghua/ZH→{target} (LƯỢT 2: vá lỗi NMT, "
+        "giọng thoại tự nhiên).\n"
         f"{voice}"
         "vi_nhap = bản DỊCH CHÍNH từ NMT. MẶC ĐỊNH: GIỮ NGUYÊN — không viết lại.\n"
+        "Khi sửa: ưu tiên đúng nghĩa + ngữ cảnh; văn phong tự nhiên khớp thể loại "
+        "trong plan (đô thị dị năng / tiên hiệp / mixed — KHÔNG ép tiên hiệp nếu phim đô thị); "
+        "giữ sắc thái cảm xúc, mỉa mai, uy quyền; xưng hô khớp thân phận; "
+        "không máy móc từng chữ; không thêm tình tiết/giải thích.\n"
         "CHỈ trả câu trong fixes KHI có ÍT NHẤT một lỗi cứng sau:\n"
         "  (A) Sai/thiếu tên nhân vật so với bảng characters / type=lock.\n"
-        "  (B) Sai nghĩa RÕ so với ZH (đảo ngôi trong cùng câu, hiểu ngược idiom).\n"
-        "  (C) Còn chữ Hán / Hán-Nôm thô cứng (tiến vào→vào; uống giấm→ghen; ba vạn→30 000).\n"
+        "  (B) Sai nghĩa RÕ so với ZH (đảo ngôi, hiểu ngược idiom, calque vô nghĩa — "
+        "vd 分手补偿≠«chia thường»; 脆皮≠«da mỏng» mà là yếu/dễ vỡ; "
+        "运动员≠«vận hành viên»).\n"
+        "  (C) Còn chữ Hán / Hán-Nôm thô cứng (tiến vào→vào; ba vạn→30 000). "
+        "Riêng 吃醋: «ghen» là nghĩa thường, nhưng «uống giấm» tự nhiên/chơi chữ KHÔNG tự động là lỗi.\n"
         "  (D) Quá dài so với 'sec' (~5 âm tiết/giây) khiến TTS dí hơi — chỉ RÚT, giữ ý NMT.\n"
+        "  (E) ASR cắt sai tạo stutter/overlap: ZH hoặc VI lặp trong câu, hay đuôi cue trước "
+        "trùng đầu cue sau. Khi đó PHẢI gỡ phần lặp, gộp ý và tối ưu VI tại cue liên quan; "
+        "giữ đủ id/cue, không chép lại phần đuôi đã nằm ở cue trước. "
+        "Ví dụ E: zh=不对不对， / vi_nhap=Không đúng không đúng, → vi=Không đúng, ; "
+        "zh có 属下属下 → gỡ một lần 属下. "
+        "KHÔNG cắt tượng thanh/cười có chủ ý (叮当叮当、哈哈哈哈).\n"
+        "  (F) Câu VI vô nghĩa / nửa câu / đuôi treo vì ASR cắt ý (thường nằm trong Pass1 nonsense_i "
+        "hoặc half_cue_pairs). Ví dụ: zh=我也一样，之前。 vi=Tôi cũng vậy, trước đó. + cue sau "
+        "之前那些不舒服的感觉。 → sửa thành câu CÓ NGHĨA, phân bổ ý sang cue liền kề "
+        "(vd cue1 «Tôi cũng vậy.» / cue2 «Những cảm giác khó chịu lúc trước.»). "
+        "CẤM để trống cả hai cue; CẤM viết lại cả đoạn chỉ vì 'hay hơn'.\n"
         "CẤM tuyệt đối:\n"
-        "  - Đổi từ đồng nghĩa / 'hay hơn' (vd Lão tử→Tôi, chúng ta→bọn tôi) khi NMT đã đúng.\n"
-        "  - Viết lại cả câu chỉ vì văn phong.\n"
-        "  - Ép modern↔cổ khi NMT đã khớp ngữ cảnh.\n"
+        "  - Đổi từ đồng nghĩa / 'hay hơn' khi NMT đã đúng nghĩa (vd Lão tử→Tôi).\n"
+        "  - Viết lại cả câu chỉ vì văn phong khi câu đã đủ nghĩa và tự nhiên.\n"
+        "  - Ép modern↔cổ / ép tiên hiệp khi NMT đã khớp ngữ cảnh plan.\n"
         + rule3
-        + "YẾU TỐ CỨNG giữ: tên NV, type=lock, chiêu thức.\n"
+        + "YẾU TỐ CỨNG giữ: tên NV, type=lock, chiêu thức/cảnh giới.\n"
         "Câu NMT đã ổn → KHÔNG đưa vào fixes (thiếu sót còn hơn sửa thừa).\n"
         + _translate_rules(plan)
         + "\nCHỈ trả JSON."
@@ -1974,21 +2470,65 @@ def review_batch(rows: list[dict], plan_block: str, prev_ctx: list[dict],
         ctx = ledger_ctx + ctx
     if lock_ctx:
         ctx = lock_ctx + "\n" + ctx
-    payload = [
-        {"i": r["i"], "sec": round((r.get("end", 0) - r.get("start", 0)), 1),
-         "zh": r.get("zh", ""), "vi_nhap": r.get("vi", "")}
-        for r in rows
-    ]
+    mask_on = _review_pronoun_mask_on()
+    token_map: dict[int, list[str]] = {}
+    payload = []
+    for r in rows:
+        vi0 = r.get("vi", "") or ""
+        if mask_on:
+            masked, toks = _mask_pronouns_vi(vi0)
+            token_map[int(r["i"])] = toks
+            vi_send = masked
+        else:
+            vi_send = vi0
+        payload.append({
+            "i": r["i"],
+            "sec": round((r.get("end", 0) - r.get("start", 0)), 1),
+            "zh": r.get("zh", ""),
+            "vi_nhap": vi_send,
+        })
+    if mask_on:
+        sys = (
+            sys
+            + "\nToken ⟦Pn⟧ = đại từ KHÓA — giữ nguyên từng token; CẤM đổi ngôi / tháo token.\n"
+        )
+    must_f: list[int] = []
+    if isinstance(plan, dict):
+        p1 = plan.get("review_pass1") if isinstance(plan.get("review_pass1"), dict) else {}
+        flagged = set()
+        for x in (p1.get("nonsense_i") or []):
+            try:
+                flagged.add(int(x))
+            except (TypeError, ValueError):
+                pass
+        for pair in (p1.get("half_cue_pairs") or []):
+            if isinstance(pair, (list, tuple)):
+                for x in pair[:2]:
+                    try:
+                        flagged.add(int(x))
+                    except (TypeError, ValueError):
+                        pass
+        must_f = sorted({int(r["i"]) for r in rows if "i" in r and int(r["i"]) in flagged})
+    must_line = ""
+    if must_f:
+        must_line = (
+            f"BẮT BUỘC trả fixes cho các i Pass1/F sau (nửa câu/vô nghĩa): {must_f}. "
+            "Không được bỏ trống fixes với các i này nếu vi_nhap còn đuôi treo/nửa ý.\n"
+        )
     user = (
         f"{plan_block}\n{scene_ctx}{ctx}"
-        "Dưới đây là NMT chính. CHỈ trả fixes cho câu LỖI CỨNG (A–D). "
-        "Nếu NMT đã ổn (vd thoại miệng tự nhiên như «Lão tử…») → BỎ QUA, đừng đổi sang tôi/bọn tôi. "
+        "Dưới đây là NMT chính. CHỈ trả fixes cho câu LỖI CỨNG (A–F). "
+        "Ưu tiên (E)/(F) nếu lặp ASR hoặc nửa câu/đuôi treo/vô nghĩa — "
+        "sửa để CÂU CÓ NGHĨA, bám style_brief Pass1; đây KHÔNG phải polish đồng nghĩa. "
+        f"{must_line}"
+        "Chỉ sửa cue lỗi; không viết lại câu NMT tốt khác. "
+        "Nếu NMT đã ổn (vd thoại miệng tự nhiên như «Lão tử…», «uống giấm» tự nhiên) → BỎ QUA. "
         "Trả JSON: {\"fixes\":[{\"i\":<int>,\"vi\":\"<bản sửa>\"}]} — fixes=[] nếu không cần sửa.\n\n"
         f"{json.dumps(payload, ensure_ascii=False)}"
     )
     out = chat(
         [{"role": "system", "content": sys}, {"role": "user", "content": user}],
-        model=model or _tmodel(), temperature=0.1, json_mode=True,
+        model=model or _rmodel(), temperature=0.1, json_mode=True,
         # chỉ trả câu cần sửa → output ngắn; 4096 đủ cho ~30 câu sửa
         max_tokens=4096,
     )
@@ -1999,7 +2539,19 @@ def review_batch(rows: list[dict], plan_block: str, prev_ctx: list[dict],
                for f in fixes if isinstance(f, dict) and "i" in f and (f.get("vi") or "").strip()}
     except Exception:  # noqa: BLE001
         raw = _salvage_items(out)     # JSON hỏng -> vớt; rỗng = không câu nào cần sửa
-    raw = _filter_cosmetic_nmt_fixes(raw, rows, plan)
+    if mask_on and token_map:
+        restored = {}
+        by_i = {int(r["i"]): r for r in rows if isinstance(r, dict) and "i" in r}
+        for i, vi_fix in raw.items():
+            orig = (by_i.get(int(i)) or {}).get("vi") or ""
+            vi2 = _unmask_pronouns_vi(vi_fix, token_map.get(int(i)) or [])
+            if "⟦P" in vi2:
+                continue  # còn token → bỏ
+            if _pronoun_forms(vi2) != _pronoun_forms(orig):
+                continue  # #1 đóng băng ngôi
+            restored[int(i)] = vi2
+        raw = restored
+    raw = _filter_cosmetic_nmt_fixes(raw, [*prev_ctx, *rows], plan)
     try:
         from pronoun_consistency import filter_review_fixes_for_lock
         return filter_review_fixes_for_lock(raw, rows, plan)
@@ -2012,7 +2564,7 @@ def _filter_cosmetic_nmt_fixes(
     rows: list[dict],
     plan: dict | None,
 ) -> dict[int, str]:
-    """Chỉ giữ A/C/D cứng; mặc định GIỮ NMT (bỏ polish GPT)."""
+    """Chỉ giữ A/C/D/E/F cứng; mặc định GIỮ NMT (bỏ polish GPT)."""
     if not fixes:
         return fixes
     import re
@@ -2020,6 +2572,7 @@ def _filter_cosmetic_nmt_fixes(
 
     by_i = {int(r["i"]): r for r in rows if isinstance(r, dict) and "i" in r}
     names: list[str] = []
+    pass1_flags: set[int] = set()
     if isinstance(plan, dict):
         for c in plan.get("characters") or []:
             if isinstance(c, dict) and str(c.get("vi") or "").strip():
@@ -2029,12 +2582,82 @@ def _filter_cosmetic_nmt_fixes(
                 vi = str(t.get("vi") or "").strip()
                 if vi:
                     names.append(vi)
+        p1 = plan.get("review_pass1") if isinstance(plan.get("review_pass1"), dict) else {}
+        for x in (p1.get("nonsense_i") or []):
+            try:
+                pass1_flags.add(int(x))
+            except (TypeError, ValueError):
+                pass
+        for pair in (p1.get("half_cue_pairs") or []):
+            if isinstance(pair, (list, tuple)):
+                for x in pair[:2]:
+                    try:
+                        pass1_flags.add(int(x))
+                    except (TypeError, ValueError):
+                        pass
 
     def _has_cjk(s: str) -> bool:
         return bool(re.search("[\u4e00-\u9fff]", s or ""))
 
     def _toks(s: str) -> set[str]:
         return {t for t in re.findall(r"[A-Za-zÀ-ỹà-ỹ0-9]+", (s or "").lower()) if len(t) >= 2}
+
+    ordered = [r for r in rows if isinstance(r, dict) and "i" in r]
+    pos_by_i = {int(r["i"]): p for p, r in enumerate(ordered)}
+
+    def _tail_head_overlap(left: str, right: str) -> bool:
+        """Exact overlap strong enough to indicate an ASR boundary repeat."""
+        l_words = re.findall(r"[A-Za-zÀ-ỹĐđ0-9]+", left or "")
+        r_words = re.findall(r"[A-Za-zÀ-ỹĐđ0-9]+", right or "")
+        for width in range(min(8, len(l_words), len(r_words)), 1, -1):
+            if [x.casefold() for x in l_words[-width:]] == [x.casefold() for x in r_words[:width]]:
+                return True
+        l_zh = re.sub(r"[^\u4e00-\u9fff]", "", left or "")
+        r_zh = re.sub(r"[^\u4e00-\u9fff]", "", right or "")
+        for width in range(min(12, len(l_zh), len(r_zh)), 1, -1):
+            if l_zh[-width:] == r_zh[:width]:
+                return True
+        return False
+
+    def _has_asr_stutter(i: int, row: dict) -> bool:
+        zh = str(row.get("zh") or "")
+        vi = str(row.get("vi") or "")
+        if heal_obvious_internal_stutter(zh) != zh or heal_obvious_internal_stutter(vi) != vi:
+            return True
+        pos = pos_by_i.get(i)
+        if pos is None:
+            return False
+        for other_pos in (pos - 1, pos + 1):
+            if not (0 <= other_pos < len(ordered)):
+                continue
+            other = ordered[other_pos]
+            before, after = (other, row) if other_pos < pos else (row, other)
+            if _tail_head_overlap(str(before.get("zh") or ""), str(after.get("zh") or "")):
+                return True
+            if _tail_head_overlap(str(before.get("vi") or ""), str(after.get("vi") or "")):
+                return True
+        return False
+
+    _hang_re = re.compile(
+        r"(?i)(trước đó|sau đó|nhưng|và|thì|là|của|với|cho|ở|tới|đến|nên|vì|nếu)\s*[.。…]*$"
+    )
+
+    def _has_nonsense_halfcue(i: int, row: dict) -> bool:
+        if i in pass1_flags:
+            return True
+        vi = str(row.get("vi") or "").strip()
+        zh = str(row.get("zh") or "").strip()
+        words = re.findall(r"[A-Za-zÀ-ỹĐđ0-9]+", vi)
+        if vi and _hang_re.search(vi) and len(words) <= 8:
+            return True
+        if zh.endswith(("，", ",", "、", "…")) and len(words) <= 6:
+            return True
+        pos = pos_by_i.get(i)
+        if pos is not None and pos + 1 < len(ordered):
+            nxt_zh = str(ordered[pos + 1].get("zh") or "")
+            if re.search(r"之前[，,。.!？]?$", zh) and nxt_zh.startswith("之前"):
+                return True
+        return False
 
     # Xưng hô miệng NMT — GPT đổi sang tôi/chúng ta = cosmetic
     _colloq = (
@@ -2084,8 +2707,29 @@ def _filter_cosmetic_nmt_fixes(
         overlap = (len(a & b) / max(1, min(len(a), len(b)))) if a and b else 0.0
         ratio = SequenceMatcher(None, n_l, f_l).ratio()
         shortened = len(fix) <= int(len(nhap) * 0.75)
-        # chỉ chấp nhận RÚT (từ mới ≤15%), không viết lại đồng nghĩa
+        # (E) ASR stutter/overlap có bằng chứng: cho phép Gemma gộp và tối ưu vừa đủ.
+        # Vẫn đòi bản sửa sạch Hán, không dài thêm đáng kể và còn giữ lõi từ của NMT.
+        if (
+            _has_asr_stutter(i, r)
+            and not _has_cjk(fix)
+            and len(fix) <= max(len(nhap) + 12, int(len(nhap) * 1.2))
+            and (overlap >= 0.35 or ratio >= 0.45)
+        ):
+            out[i] = fix
+            continue
+        # (F) nửa câu / đuôi treo / vô nghĩa (Pass1 flag hoặc heuristic).
+        # Cho phép viết lại vừa đủ để thành câu có nghĩa; vẫn cấm phình quá + CJK.
         new_ratio = (len(b - a) / max(1, len(b))) if b else 1.0
+        n_words_nhap = len(re.findall(r"[A-Za-zÀ-ỹĐđ0-9]+", nhap))
+        if (
+            _has_nonsense_halfcue(i, r)
+            and not _has_cjk(fix)
+            and len(fix) <= max(len(nhap) + 40, int(len(nhap) * 1.6))
+            and (overlap >= 0.25 or ratio >= 0.35 or n_words_nhap <= 6)
+        ):
+            out[i] = fix
+            continue
+        # chỉ chấp nhận RÚT (từ mới ≤15%), không viết lại đồng nghĩa
         if over and shortened and overlap >= 0.65 and new_ratio <= 0.15 and ratio >= 0.45:
             out[i] = fix
             continue
@@ -2175,11 +2819,41 @@ def run_review(
                 rows[idx].pop("rv", None)
         atomic_write_json(script_path, rows, fsync=False)
 
-    rmodel = model or _rmodel()          # lượt rà văn phong: mặc định gemma3:12b
+    # Trước LLM: gỡ stutter nội bộ rõ ràng (不对不对 / thuộc hạ thuộc hạ).
+    # Gemma duty E vẫn rà residual + tail→head; filter giữ fix có bằng chứng.
+    n_asr = apply_asr_stutter_heal(rows)
+    n_half = apply_halfcue_dangling_heal(rows)
+    if n_asr or n_half:
+        atomic_write_json(script_path, rows, fsync=False)
+
+    # Pass1: đọc full ZH+VI SRT → style_brief + flag câu vô nghĩa/nửa câu (duty F).
+    rmodel = _resolve_review_model(work_dir, model)
     pos_by_i = {r["i"]: idx for idx, r in enumerate(rows)}
     total = len(rows)
     todo = [r for r in rows if force or not r.get("rv")]
     n_done = total - len(todo)
+    if todo:
+        try:
+            st0 = m.data.setdefault("stages", {}).setdefault("translate", {})
+            st0.update({
+                "status": "running",
+                "review": True,
+                "review_model": rmodel,
+                "cur_text": f"Pass1 đọc full VI ({len(todo)}/{total} câu)…",
+                "updated_at": time.time(),
+            })
+            m.data["stages"]["translate"] = st0
+            m.save()
+            plan = run_review_pass1_full_vi(work_dir, rows, plan, model=None)
+            plan_block = _plan_block(plan)
+            plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+            sl = plan.get("style_lock")
+            if isinstance(sl, dict):
+                (work_dir / "style_lock.json").write_text(
+                    json.dumps(sl, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+        except Exception as e_p1:  # noqa: BLE001
+            print(f"[review-pass1] bỏ qua (lỗi): {e_p1}", flush=True)
     print(f"[review] Model={rmodel} | soát {len(todo)}/{total} câu, lô {batch}.", flush=True)
 
     # Chuyển đổi model preset AI local (Lượt 2: Rà soát chuẩn xác) nếu rmodel là local
@@ -2199,15 +2873,24 @@ def run_review(
         free_gpu_vram("trước soát")
     try:
         for k in range(0, len(todo), batch):
+            if (work_dir / ".stop").exists():
+                atomic_write_json(script_path, rows)
+                raise RuntimeError("stopped by user")
             chunk = todo[k : k + batch]
+            chunk_ids = {int(r["i"]) for r in chunk if "i" in r}
             pos = pos_by_i.get(chunk[0]["i"], 0)
+            # Mở rộng ±1 cue để duty F thấy nửa câu cắt sang hàng kế.
+            i0 = pos_by_i.get(chunk[0]["i"], 0)
+            i1 = pos_by_i.get(chunk[-1]["i"], i0)
+            exp0, exp1 = max(0, i0 - 1), min(len(rows), i1 + 2)
+            chunk_exp = rows[exp0:exp1]
             prev_ctx = [rows[j] for j in range(max(0, pos - CTX_LINES), pos) if rows[j].get("vi")]
             fixes = {}
             try:
                 fixes = review_batch(
-                    chunk, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
+                    chunk_exp, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
                     exemplars_pool=rows,
-                )
+                ) or {}
             except Exception as e:
                 err_str = str(e).lower()
                 is_out_of_tokens_or_quota = (
@@ -2225,9 +2908,9 @@ def run_review(
                         rmodel = f"llama/{local_rev}"
                         print(f"[review] ✅ Đã mở xong {local_rev}. Tiếp tục soát bằng Local!", flush=True)
                         fixes = review_batch(
-                            chunk, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
+                            chunk_exp, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
                             exemplars_pool=rows,
-                        )
+                        ) or {}
                     except Exception as e_fallback:
                         print(f"[review] ❌ Lỗi khi chuyển sang fallback local ({local_rev}): {e_fallback}", flush=True)
                         fixes = {}
@@ -2236,10 +2919,12 @@ def run_review(
                 else:
                     print(f"[review] Lô {k // batch} lỗi, bỏ qua tạm: {e}")
                     fixes = {}
-            for r in chunk:
+            # Áp fix cả cue ±1 (duty F); chỉ đánh rv cho chunk chính.
+            for r in chunk_exp:
                 if fixes.get(r["i"]):
                     r["vi"] = normalize_vi_thousands(fixes[r["i"]])
-                r["rv"] = 1                      # đã soát (để resume)
+            for r in chunk:
+                r["rv"] = 1
             n_done += len(chunk)
             atomic_write_json(script_path, rows)
             print(f"  ...soát {min(k + batch, len(todo))}/{len(todo)} (sửa {len(fixes)} câu)", flush=True)
@@ -2284,6 +2969,26 @@ def run_review(
             series_glossary.save_from(work_dir, reason="hoàn thành rà soát")
         except Exception:
             pass
+        # Brain hang pass: trace + xử lý đuôi treo SAU review (tránh race ghi script)
+        try:
+            from agent_hang_fix import fix_hang_job
+            hang_r = fix_hang_job(work_dir, write=True, force=True)
+            if not hang_r.get("skipped"):
+                print(
+                    f"[hang-fix] cases={hang_r.get('n_cases')} "
+                    f"fixed={hang_r.get('n_fixed')} "
+                    f"high_left={hang_r.get('high_hang_left')} "
+                    f"high_open={hang_r.get('high_open')}",
+                    flush=True,
+                )
+                # reload rows nếu hang_fix đã ghi script
+                try:
+                    rows = json.loads(script_path.read_text(encoding="utf-8"))
+                    n_missing = sum(1 for r in rows if not (r.get("vi") or "").strip())
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception as e_hang:  # noqa: BLE001
+            print(f"[hang-fix] skip: {e_hang}", flush=True)
     except Exception as e:  # noqa: BLE001
         m.mark_failed(STAGE, e)
         raise
@@ -3041,6 +3746,10 @@ def run_translate(
             print(f"[pipeline] ✅ XONG: NMT dịch chính + LLM rà soát", flush=True)
             return rv_res
         except Exception as e_rv:
+            # Stop user ≠ “review lỗi” — không mark_done / không nhảy TTS.
+            if "stopped by user" in str(e_rv).lower() or (work_dir / ".stop").exists():
+                print(f"[pipeline] ⏹ Dừng theo yêu cầu: {e_rv}", flush=True)
+                raise RuntimeError("stopped by user") from e_rv
             print(f"[pipeline] ⚠️ Lượt 2 rà soát lỗi ({e_rv}) → giữ bản NMT/L1.", flush=True)
 
     result = m.mark_done(

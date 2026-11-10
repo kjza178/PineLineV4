@@ -1,0 +1,152 @@
+{
+  "n_changed": 8,
+  "example_before": [
+    {
+      "i": 0,
+      "zh": "我也一样，之前。",
+      "vi": "Tôi cũng vậy, trước đó."
+    },
+    {
+      "i": 1,
+      "zh": "之前那些不舒服的感觉。",
+      "vi": "Những cảm giác khó chịu trước đó."
+    }
+  ],
+  "example_after": [
+    {
+      "i": 0,
+      "zh": "我也一样，之前。",
+      "vi": "Tôi cũng vậy."
+    },
+    {
+      "i": 1,
+      "zh": "之前那些不舒服的感觉。",
+      "vi": "Những cảm giác khó chịu trước đó."
+    }
+  ],
+  "pass1_nonsense_i": [
+    0,
+    1,
+    2,
+    5,
+    6,
+    9,
+    10,
+    11,
+    14,
+    16,
+    21
+  ],
+  "pass1_half_cue_pairs": [
+    [
+      0,
+      1
+    ],
+    [
+      14,
+      15
+    ]
+  ],
+  "sample_diffs": [
+    {
+      "i": 0,
+      "zh": "我也一样，之前。",
+      "before": "Tôi cũng vậy, trước đó.",
+      "after": "Tôi cũng vậy."
+    },
+    {
+      "i": 9,
+      "zh": "谁也不敢跟，",
+      "before": "Ai cũng không dám đi theo",
+      "after": "Chẳng ai dám theo,"
+    },
+    {
+      "i": 10,
+      "zh": "谁敢啊，",
+      "before": "Ai dám chứ",
+      "after": "Ai dám chứ,"
+    },
+    {
+      "i": 11,
+      "zh": "那东西行踪不定，",
+      "before": "Vật đó hành tung bất định,",
+      "after": "Thứ đó hành tung bất định,"
+    },
+    {
+      "i": 14,
+      "zh": "唉，",
+      "before": "Ối.",
+      "after": "Haiz,"
+    },
+    {
+      "i": 15,
+      "zh": "鬼知道明天轮到哪儿，",
+      "before": "Quỷ mới biết ngày mai đến phiên nơi nào",
+      "after": "Quỷ mới biết ngày mai đến lượt nơi nào,"
+    },
+    {
+      "i": 16,
+      "zh": "又开始刷屏了，",
+      "before": "Lại bắt đầu quét màn hình,",
+      "after": "Lại bắt đầu spam rồi,"
+    },
+    {
+      "i": 21,
+      "zh": "耍了好些天了，",
+      "before": "Chơi đùa mấy ngày rồi,",
+      "after": "Đã chơi đùa mấy ngày rồi,"
+    }
+  ],
+  "f_related_diffs": [
+    {
+      "i": 0,
+      "zh": "我也一样，之前。",
+      "before": "Tôi cũng vậy, trước đó.",
+      "after": "Tôi cũng vậy."
+    },
+    {
+      "i": 9,
+      "zh": "谁也不敢跟，",
+      "before": "Ai cũng không dám đi theo",
+      "after": "Chẳng ai dám theo,"
+    },
+    {
+      "i": 10,
+      "zh": "谁敢啊，",
+      "before": "Ai dám chứ",
+      "after": "Ai dám chứ,"
+    },
+    {
+      "i": 11,
+      "zh": "那东西行踪不定，",
+      "before": "Vật đó hành tung bất định,",
+      "after": "Thứ đó hành tung bất định,"
+    },
+    {
+      "i": 14,
+      "zh": "唉，",
+      "before": "Ối.",
+      "after": "Haiz,"
+    },
+    {
+      "i": 15,
+      "zh": "鬼知道明天轮到哪儿，",
+      "before": "Quỷ mới biết ngày mai đến phiên nơi nào",
+      "after": "Quỷ mới biết ngày mai đến lượt nơi nào,"
+    },
+    {
+      "i": 16,
+      "zh": "又开始刷屏了，",
+      "before": "Lại bắt đầu quét màn hình,",
+      "after": "Lại bắt đầu spam rồi,"
+    },
+    {
+      "i": 21,
+      "zh": "耍了好些天了，",
+      "before": "Chơi đùa mấy ngày rồi,",
+      "after": "Đã chơi đùa mấy ngày rồi,"
+    }
+  ],
+  "review_model": "llama/gemma4-12b-qat-mtp-fast",
+  "pass1_model": "chatgpt/gpt-5-6-mini"
+}

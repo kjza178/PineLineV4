@@ -1025,7 +1025,19 @@ def _publish_job_internal(
 
     title_vi = (row.get("title_vi") or row.get("title") or m_data.get("title_vi") or "").strip()
     title_zh = (row.get("title") or "").strip()
-    poster_name = row.get("hg_name") or row.get("title") or row.get("series") or ""
+    try:
+        from film_db import derive_hg_name, is_junk_hg_name
+        poster_name = (row.get("hg_name") or "").strip()
+        if is_junk_hg_name(poster_name, job_id):
+            poster_name = derive_hg_name(
+                job_id,
+                {"hg_name": row.get("hg_name"), "parent_job_id": (job_id.rsplit("_p", 1)[0] if "_p" in job_id else "")},
+                row.get("title") or "",
+            )
+        if is_junk_hg_name(poster_name, job_id):
+            poster_name = ""
+    except Exception:
+        poster_name = row.get("hg_name") or row.get("title") or row.get("series") or ""
     f_size_mb = Path(out_path).stat().st_size // (1024 * 1024) if Path(out_path).is_file() else 0
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

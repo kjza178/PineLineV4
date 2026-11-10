@@ -1,0 +1,188 @@
+{
+  "job_id": "9c3af49061a2",
+  "title": "5",
+  "genre": "Game Lit / Fantasy",
+  "source_vtt": "D:\\PinelineV2_tmp\\job5_yt\\qqHgKvMZqaQ.vi.vtt",
+  "glossary": "Z:\\PinelineV2\\data\\series_glossary\\5.json",
+  "n_raw_timed_blocks": 8530,
+  "n_flash": 4132,
+  "n_progressive": 4398,
+  "n_clean_cues": 4132,
+  "n_stitched": 4025,
+  "sample_size": 190,
+  "verdict": "poor",
+  "taxonomy": [
+    {
+      "id": "name_mismatch",
+      "label": "Wrong/inconsistent character names vs glossary",
+      "count_events": 9,
+      "notes": "Lão Đường×3 + Đẳng×1 + Huyết Cơ; Tĩnh Tĩnh=0; Kawasaki=0"
+    },
+    {
+      "id": "pronoun_chaos",
+      "label": "Pronoun / address chaos (ta/tôi/ngươi/anh/em/đại ca)",
+      "count_events": 26,
+      "notes": "ta=226, tôi=528, cậu=548, ngươi=5, đại ca=3"
+    },
+    {
+      "id": "calque_hv",
+      "label": "Calque / Hán-Nôm thô (sinh mệnh, hắn, ám kim, …)",
+      "count_events": 252,
+      "notes": "hắn cực dày; sinh mệnh/công kích vật lý mở đầu video"
+    },
+    {
+      "id": "redundant_stutter",
+      "label": "Redundant / stutter / meaningless fillers",
+      "count_events": 200,
+      "notes": "lặp từ, particle, haha TTS"
+    },
+    {
+      "id": "number_stat_garble",
+      "label": "Number/stat garble",
+      "count_events": 5,
+      "notes": "HP lặp, gà Hán + số, vạn vạn"
+    },
+    {
+      "id": "asr_tts_nonsense",
+      "label": "Obvious nonsense / ASR-of-TTS artifacts",
+      "count_events": 7,
+      "notes": "gà Hán, lạc đà, thợ giác rưởi, Tống Thạch"
+    },
+    {
+      "id": "wrong_meaning",
+      "label": "Obvious wrong/odd meaning (non-name)",
+      "count_events": 4,
+      "notes": "cần ZH để confirm từng câu; nhiều câu nghe 'đúng từ sai nghĩa'"
+    }
+  ],
+  "correct_name_counts": {
+    "Lão Đằng": 14,
+    "Trần Phong": 103,
+    "Tử Ưu": 13,
+    "Tử U": 14,
+    "Tĩnh Tĩnh": 0,
+    "Tuyết Cơ": 3,
+    "Diệp Chiêu": 2,
+    "Minh Vương": 2,
+    "Hoàng Lão": 3,
+    "Phong Oánh": 1,
+    "Bạch Trạch": 19,
+    "Ma Chủ": 12,
+    "Thần Chủ": 2,
+    "Kawasaki": 0,
+    "Khánh Vân": 2,
+    "Cao Cường": 1,
+    "lão đại": 74,
+    "đại ca": 3,
+    "Chị Tĩnh (partial)": 1
+  },
+  "name_mismatch_counts": {
+    "Lão Đằng → Lão Đường (3-cue window)": 3,
+    "Lão Đằng → Lão Đẳng (3-cue window)": 1,
+    "Tuyết Cơ → Huyết Cơ": 1,
+    "Tĩnh Tĩnh → Chị Tĩnh (truncated)": 1,
+    "Tĩnh Tĩnh canonical": 0,
+    "Kawasaki canonical": 0
+  },
+  "top_name_mismatches": [
+    {
+      "pattern": "Lão Đằng → Lão Đường",
+      "count": 3
+    },
+    {
+      "pattern": "Lão Đằng → Lão Đẳng",
+      "count": 1
+    },
+    {
+      "pattern": "Tuyết Cơ → Huyết Cơ",
+      "count": 1
+    },
+    {
+      "pattern": "Tĩnh Tĩnh missing (Chị Tĩnh only)",
+      "count": 0
+    },
+    {
+      "pattern": "Kawasaki missing",
+      "count": 0
+    }
+  ],
+  "pronoun_counts": {
+    "ta": 226,
+    "tôi": 528,
+    "ngươi": 5,
+    "anh": 10,
+    "em": 4,
+    "cậu": 548,
+    "các cậu": 102,
+    "các ngươi": 0,
+    "nàng": 3,
+    "ngài": 17,
+    "hắn": 215,
+    "lão tử": 21,
+    "công tử": 3,
+    "lão phu": 2,
+    "huynh": 10
+  },
+  "pronoun_clash": {
+    "ta+tôi same cue": 14,
+    "ngươi+cậu": 0,
+    "ta+anh": 0,
+    "hắn+cậu mixed register": 24,
+    "chúng ta + tôi (ok-ish)": 11,
+    "bare ta + tôi (bad)": 3
+  },
+  "calque_counts": {
+    "sinh mệnh": 30,
+    "công kích vật lý": 2,
+    "thuộc tính": 17,
+    "ám kim": 4,
+    "thánh cấp": 35,
+    "tiên cấp": 26,
+    "hắn": 215,
+    "nàng": 3,
+    "quả nhiên": 5,
+    "phong tỏa không gian": 20,
+    "Hán đế / gà Hán": 2,
+    "thần ngưu": 1,
+    "gặm được": 1,
+    "thợ giác rưởi": 4,
+    "chú ong nhỏ": 2,
+    "lạc đà chạy mau": 1,
+    "Tống Thạch": 1,
+    "công xã Đằng Dã": 10
+  },
+  "filler_counts": {
+    "word stutter (X X)": 94,
+    "à/ờ/ừ particles": 66,
+    "ha ha": 40,
+    "Tôi rất tò mò repeated": 1
+  },
+  "stat_counts": {
+    "gà Hán": 1,
+    "vạn vạn": 1,
+    "tỷ tỷ": 0,
+    "sinh mệnh … sinh mệnh duplicate": 0,
+    "số + vạn lẫn": 3
+  },
+  "nonsense_counts": {
+    "gà Hán Đế": 1,
+    "Hán đế thần ngưu": 1,
+    "gặm được một con": 1,
+    "lạc đà (ASR)": 1,
+    "thợ giác rưởi": 4,
+    "Tống Thạch": 1,
+    "word stutter": 33,
+    "Hảo hảo hảo": 0
+  },
+  "example_count": 38,
+  "top_findings": [
+    "Lão Đằng inconsistently ASR as Lão Đường/Đẳng; Tuyết Cơ→Huyết Cơ; Tĩnh Tĩnh=0 (Chị Tĩnh); Kawasaki=0",
+    "Pronoun mix: tôi/cậu dominant but ta/nàng/huynh/đại ca vs glossary lão đại",
+    "Heavy Hán-Việt calque: hắn×215, sinh mệnh×30, công kích vật lý, ám kim",
+    "ASR-of-TTS nonsense: gà Hán Đế, lạc đà, thợ giác rưởi×4, Tống Thạch",
+    "Word stutter (~94) / àờ (~66) / haha (~40) redundancy",
+    "Stat garble: duplicated sinh mệnh / broken number spans across flash cues",
+    "Odd meanings: gặm được, ong nhỏ, bà hung ác",
+    "No script.json — errors are translation+TTS+ASR composite"
+  ]
+}

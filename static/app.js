@@ -462,7 +462,7 @@ function selectStep(key){ selectedStep=key; if(lastFull){ document.querySelector
 
 function uiMode(){ return (document.body&&document.body.dataset.ui)||'classic'; }
 // Giữ lựa chọn form khi panel/mid bị dựng lại (click → refresh → innerHTML mặc định).
-const FORM_IDS=['auto-asr','auto-engine','auto-voice','auto-speed','auto-audio','auto-ovol','auto-tr-mode','auto-ocr','auto-fit','auto-res','auto-zoom','auto-motion','auto-lut','auto-grain','auto-vbit','auto-flip','auto-frame','auto-brand-mode','auto-brand-text','auto-brand-logo'];
+const FORM_IDS=['auto-asr','auto-engine','auto-voice','auto-speed','auto-audio','auto-ovol','auto-tr-mode','auto-review-backup','auto-ocr','auto-fit','auto-res','auto-zoom','auto-motion','auto-lut','auto-grain','auto-vbit','auto-flip','auto-frame','auto-brand-mode','auto-brand-text','auto-brand-logo'];
 let _formPrefs={}; // job_id -> {field: value|bool}
 function snapFormPrefs(jobId){
   if(!jobId) return;
@@ -502,7 +502,7 @@ function autoEngineOpts(j){
 }
 function autoAsrOpts(j){
   const e=prefOf(j.job_id,'auto-asr',(((j.stages.asr||{}).asr_engine||(j.stages.asr||{}).engine||'hybrid_fa')));
-  const o=[['hybrid_fa','⭐ Hybrid FA+Repair (khuyến nghị)'],['fun_asr_nano','Fun-ASR-Nano — chỉ chữ'],['paraformer_zh','Paraformer — chỉ timing'],['sensevoice','SenseVoice — nhanh'],['firered_asr','FireRedASR2 — dự phòng']];
+  const o=[['nano_fa','⭐ Nano + Direct FA (Khuyên dùng — Không đúp câu)'],['hybrid_fa','Hybrid FA (no repair)'],['fun_asr_nano','Fun-ASR-Nano — chỉ chữ'],['paraformer_zh','Paraformer — chỉ timing'],['sensevoice','SenseVoice — nhanh'],['firered_asr','FireRedASR2 — dự phòng']];
   return o.map(([v,t])=>`<option value="${v}" ${v===e?'selected':''}>${t}</option>`).join('');
 }
 function lookControlsHtml(j){
@@ -567,6 +567,7 @@ function pipelineControlsHtml(j){
       <option value="0.6" ${sel(String(prefOf(id,'auto-ovol','0.22')),'0.6')}>rất to</option>
     </select></label>
     <label class="chk">🈶 <select id="auto-tr-mode" onchange="rememberForm('${id}','auto-tr-mode',this.value)"><option value="batch" ${sel(tr,'batch')}>batch (lô 20)</option><option value="auto" ${sel(tr,'auto')}>auto</option><option value="oneshot" ${sel(tr,'oneshot')}>oneshot</option></select></label>
+    <label class="chk" title="off = REVIEW_MODEL config; Aurora∥ = rà chatgpt/gpt-6 (Aurora/:3377)">🛡 <select id="auto-review-backup" onchange="rememberForm('${id}','auto-review-backup',this.value)"><option value="off" ${sel(String(prefOf(id,'auto-review-backup','aurora_parallel')),'off')}>REVIEW: config</option><option value="aurora_parallel" ${sel(String(prefOf(id,'auto-review-backup','aurora_parallel')),'aurora_parallel')}>Aurora GPT∥</option></select></label>
     <label class="chk"><input type="checkbox" id="auto-ocr" ${ocr?'checked':''} onchange="rememberForm('${id}','auto-ocr',this.checked)"> OCR</label>
     <label class="chk"><input type="checkbox" id="auto-fit" ${fit?'checked':''} onchange="rememberForm('${id}','auto-fit',this.checked)"> Khớp time</label>
     <label class="chk">🖥 <select id="auto-res" onchange="rememberForm('${id}','auto-res',this.value)"><option value="source" ${sel(res,'source')}>Nguồn</option><option value="1080" ${sel(res,'1080')}>1080p</option></select></label>`;
@@ -1078,9 +1079,13 @@ function stepRow(j,s){
   const isAsrSep = (s.key === 'asr' && sepRun && rawSt !== 'running' && rawSt !== 'done');
   const st = isAsrSep ? 'running' : rawSt;
   const running=st==='running', done=st==='done', stg=j.stages[s.key]||{};
+  // REVIEW CLI ngoài _PROCS đôi khi bị heal → pending; vẫn hiện soát nếu đang giữa chừng.
+  const midReview = s.key==='translate' && stg.review && !done
+    && Number(stg.review_progress||0) > 0 && Number(stg.review_progress||0) < 100
+    && (running || st==='pending');
   let sub=s.sub;
   if(st==='failed'&&stg.error){ sub=`<span class="err">⚠ ${escapeHtml(String(stg.error).slice(0,60))}</span>`; }
-  else if(running){
+  else if(running || midReview){
     const p=isAsrSep ? sep.progress : stg.progress; let d='';
     if(isAsrSep){ d=`Demucs tách tiếng ${sep.progress!=null?sep.progress+'%':''}`.trim(); }
     else if(s.key==='download'&&p!=null){ const pc=Math.min(Math.max(p,0),100); d=`${pc}%`+(stg.speed>0?' · '+fmtSize(stg.speed)+'/s':''); }
@@ -1237,7 +1242,8 @@ async function loadArtifact(j,key){
         :(cur.asr_engine||cur.engine)||curAsrEngine(j);
       const runEng=activeEng;  // dropdown khớp bản đang dùng (không lấy engine lệch)
       const engSel=`🎤 Chạy ASR mới: <select id="asr-engine" onchange="asrEngineChanged('${j.job_id}')">
-        <option value="hybrid_fa" ${runEng==='hybrid_fa'?'selected':''}>⭐ Hybrid FA+Repair</option>
+        <option value="nano_fa" ${runEng==='nano_fa'||!runEng?'selected':''}>⭐ Nano + Direct FA (Khuyên dùng — Không đúp câu)</option>
+        <option value="hybrid_fa" ${runEng==='hybrid_fa'?'selected':''}>Hybrid FA (Nano+Para+FA, no repair)</option>
         <option value="fun_asr_nano" ${runEng==='fun_asr_nano'?'selected':''}>Fun-ASR-Nano</option>
         <option value="paraformer_zh" ${runEng==='paraformer_zh'?'selected':''}>Paraformer</option>
         <option value="sensevoice" ${runEng==='sensevoice'?'selected':''}>SenseVoice</option>
@@ -1697,7 +1703,7 @@ function curAsrEngine(j){
   // Pipeline auto — chỉ khi chưa có lựa chọn panel/job
   const auto=document.getElementById('auto-asr');
   if(auto&&auto.value) return auto.value;
-  return 'hybrid_fa';
+  return 'nano_fa';
 }
 async function saveAsrEngine(id,e){
   try{
@@ -2167,6 +2173,7 @@ async function runAll(id){ return guardAct('all:'+id, async()=>{
   const fit=(document.getElementById('auto-fit')||{checked:true}).checked;
   const resolution=(document.getElementById('auto-res')||{value:'source'}).value||'source';
   const translate_mode=(document.getElementById('auto-tr-mode')||{value:'batch'}).value||'batch';
+  const review_backup=(document.getElementById('auto-review-backup')||{value:'off'}).value||'off';
   const zoom=parseFloat((document.getElementById('auto-zoom')||{value:'1.12'}).value)||1.12;
   const motion=!!(document.getElementById('auto-motion')||{checked:true}).checked;
   const lut=!!(document.getElementById('auto-lut')||{checked:true}).checked;
@@ -2179,7 +2186,7 @@ async function runAll(id){ return guardAct('all:'+id, async()=>{
   const brand_logo=(document.getElementById('auto-brand-logo')||{value:'off'}).value||'off';
   const brand=brand_mode!=='off';
   const orig_vol=parseFloat((document.getElementById('auto-ovol')||{value:(audio_mode==='duck_bgm')?'0.22':'0.6'}).value);
-  const body={voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,
+  const body={voice,speed,tts_engine,asr_engine,audio_mode,voice_vol:0.2,orig_vol,ocr,fit,resolution,translate_mode,review_backup,
     zoom,motion,lut,grain,flip,frame,brand,brand_mode,brand_text,brand_logo,vbitrate};
   try{
     const r=await fetch('/api/jobs/'+id+'/run-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

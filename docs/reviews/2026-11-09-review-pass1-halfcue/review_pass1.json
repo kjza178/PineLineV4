@@ -1,0 +1,47 @@
+{
+  "style_brief": "Văn phong hiện đại, gãy gọn, phù hợp với bối cảnh game/tiên hiệp (có thuật ngữ 'đại thần', 'bế quan', 'luyện cấp'). Giữ nguyên sắc thái khẩu ngữ tự nhiên.",
+  "register": "toi-cau",
+  "nonsense_i": [
+    0,
+    1,
+    2,
+    5,
+    6,
+    9,
+    10,
+    11,
+    14,
+    16,
+    21
+  ],
+  "half_cue_pairs": [
+    [
+      0,
+      1
+    ],
+    [
+      14,
+      15
+    ]
+  ],
+  "notes": [
+    "Câu [i=0] 'Tôi cũng vậy.' bị cụt nghĩa, cần đọc nối với [i=1] để hiểu là 'Tôi cũng vậy với những cảm giác khó chịu trước đó'.",
+    "Câu [i=14] 'Ối.' là từ cảm thán đơn lẻ, nên đọc nối với [i=15] để tạo mạch cảm xúc.",
+    "Câu [i=17] có từ 'Irain' ở cuối có vẻ là lỗi nhận diện âm thanh hoặc tên riêng lạ, cần kiểm tra lại ngữ cảnh nếu có thể."
+  ],
+  "model": "chatgpt/gpt-5-6-mini",
+  "n_lines": 26,
+  "heuristic_flags": [
+    0,
+    1,
+    2,
+    5,
+    6,
+    9,
+    10,
+    11,
+    14,
+    16,
+    21
+  ]
+}

@@ -13,12 +13,96 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# Thư mục/parent không phải tên series Hongguo — không dùng làm hg_name/poster.
+_HG_NAME_JUNK = frozenset({
+    "downloads", "download", "work", "tmp", "temp", "_split_parts",
+    "parts", "output", "videos", "video",
+})
+_RE_JOB_FOLDER = re.compile(r"^[0-9a-f]{8,16}(_p\d{2})?$", re.I)
+_RE_PART_SUFFIX = re.compile(r"\s*-\s*Phần\s+\d+\s*/\s*\d+\s*$", re.I)
+
+
+def _strip_part_suffix(title: str) -> str:
+    return _RE_PART_SUFFIX.sub("", title or "").strip()
+
+
+def is_junk_hg_name(name: str, job_id: str = "") -> bool:
+    """True nếu không nên dùng làm tên folder Lib / query /api/hg/poster."""
+    n = (name or "").strip()
+    if not n:
+        return True
+    if job_id and n == job_id:
+        return True
+    if n.lower() in _HG_NAME_JUNK:
+        return True
+    if _RE_JOB_FOLDER.fullmatch(n):
+        return True
+    # "5", "4" từ bilibili downloads — không phải series HG
+    if n.isdigit() and len(n) <= 3:
+        return True
+    return False
+
+
+def derive_hg_name(job_id: str, req: dict | None, title_clean: str = "") -> str:
+    """Tên folder Hongguo/Lib cho poster — không lấy job_id / downloads / part folder."""
+    req = req or {}
+    job_id = (job_id or "").strip()
+    explicit = str(req.get("hg_name") or "").strip()
+    if explicit and not is_junk_hg_name(explicit, job_id):
+        return explicit
+
+    parent_id = str(req.get("parent_job_id") or "").strip()
+    if parent_id:
+        try:
+            prow = get(parent_id)
+            ph = str((prow or {}).get("hg_name") or "").strip()
+            if ph and not is_junk_hg_name(ph, parent_id):
+                return ph
+        except Exception:
+            pass
+        try:
+            pmf = WORK / parent_id / "manifest.json"
+            if pmf.is_file():
+                pm = json.loads(pmf.read_text(encoding="utf-8"))
+                preq = pm.get("request") or {}
+                ph = str(preq.get("hg_name") or "").strip()
+                if not ph and preq.get("orig_path"):
+                    ph = Path(preq["orig_path"]).parent.name
+                if ph and not is_junk_hg_name(ph, parent_id):
+                    return ph
+                pt = _strip_part_suffix(
+                    str(preq.get("title") or (pm.get("meta") or {}).get("title") or "")
+                )
+                if pt and not is_junk_hg_name(pt, parent_id):
+                    return pt
+        except Exception:
+            pass
+
+    orig = str(req.get("orig_path") or "").strip()
+    if orig:
+        try:
+            parent_folder = Path(orig).parent.name
+            if parent_folder and not is_junk_hg_name(parent_folder, job_id):
+                return parent_folder
+        except Exception:
+            pass
+
+    for cand in (
+        _strip_part_suffix(title_clean),
+        _strip_part_suffix(str(req.get("group_title") or "")),
+        _strip_part_suffix(str(req.get("title") or "")),
+    ):
+        if cand and not is_junk_hg_name(cand, job_id):
+            return cand
+    return ""
 
 ROOT = Path(__file__).resolve().parent
 WORK = ROOT / "work"
@@ -232,7 +316,7 @@ def row_from_manifest(job_id: str, m: dict) -> dict:
     title = req.get("title") or dl.get("title") or job_id
     clean = title.replace(" (merged)", "").strip()
     src = req.get("orig_path") or req.get("url") or dl.get("source_url") or ""
-    hg_name = Path(req["orig_path"]).parent.name if req.get("orig_path") else ""
+    hg_name = derive_hg_name(job_id, req, clean)
     status, stage = _status_of(stages)
     if status == "done":
         if m.get("yt_url") or m.get("upload_status") == "uploaded":

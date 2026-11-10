@@ -1843,12 +1843,12 @@ button{{background:#7d2ae8;color:#fff;border:none;padding:10px 20px;border-radiu
                 return
             img_bytes = meta_studio.generate_ai_image(
                 prompt,
-                timeout=150,
+                timeout=300,
                 job_id=job_id,
                 poster_name=poster_name,
             )
             if not img_bytes:
-                self._json(500, {"ok": False, "error": "Aurora không sinh được ảnh (timeout hoặc lỗi)"})
+                self._json(500, {"ok": False, "error": "Không sinh được ảnh (timeout/lỗi GPT local :3377 hoặc Aurora)"})
                 return
 
             # 1. Lưu bản Raw AI chất lượng gốc
