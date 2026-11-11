@@ -1,0 +1,24 @@
+# Pineline — gói TUỲ CHỌN cho env chính (pineline_env). KHÔNG cài mặc định.
+# Chỉ cài phần bạn dùng:  <pineline_env>\Scripts\python.exe -m pip install <gói>
+# (scripts/setup_machine.py --scan-requirements dùng file này để biết import nào là tuỳ chọn.)
+
+# --- ASR Fun-ASR-Nano / Paraformer / SenseVoice (fun_asr_nano.py, paraformer_zh.py, sensevoice_asr.py, asr_repair.py)
+#     CẢNH BÁO: `pip install funasr` có thể kéo torch CPU đè torch CUDA → dùng install_funasr_safe.bat
+#     (hoặc SETUP_MAY_MOI.bat --with-funasr) để cài rồi khoá lại torch đúng build.
+funasr
+modelscope
+# --- ASR căn chỉnh Qwen (asr_fix_align.py, nano_fa_asr.py)
+qwen-asr
+# --- FireRed ASR (firered_asr.py) — mã nguồn ở vendor/FireRedASR2S, model riêng (FIRERED_ROOT/FIRERED_MODELS)
+# fireredasr2s
+# --- MT zh→vi cục bộ (mt_zh_vi.py, chỉ khi MT_ZH_VI=1) + fun_asr_nano
+transformers>=4.44
+sentencepiece
+# --- Upload YouTube (auto_publisher.py, test_channel.py) — cần client_secret.json (YT_UPLOADER_DIR)
+google-api-python-client
+google-auth
+google-auth-oauthlib
+# --- Hongguo license (hongguo_license_ensure.py, chỉ Windows + Hongguo Downloader)
+pythonnet
+# --- UI Streamlit riêng của context_studio (context_studio/app_streamlit.py) — server.py KHÔNG cần
+streamlit

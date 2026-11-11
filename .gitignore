@@ -64,3 +64,11 @@ _to_delete/
 scratch/
 # work là junction (git thấy như file, "work/" không khớp)
 /work
+# Sinh ra theo máy bởi SETUP_MAY_MOI.bat / install.py (2026-11-11 installer)
+.pineline_env_path
+.pineline_tmp_path
+/start.bat
+/start.sh
+.pip_tmp/
+.cache/
+pineline.config.json.tmp

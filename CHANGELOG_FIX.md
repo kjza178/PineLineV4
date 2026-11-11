@@ -67,3 +67,23 @@ Tóm tắt: Driver NVIDIA mới + Python 3.12 + FFmpeg + Ollama (`pull gemma4` +
 - Aurora không tới được → lỗi rõ, gợi ý đổi `PLAN_MODEL`/`REVIEW_MODEL`/`REVIEW_PASS1_MODEL`.
 - Doctor `python scripts\check_env.py [--offline]`; `docs/SETUP_MAY_MOI.md`; `CAI_MAY_MOI.md` viết lại (bỏ Ollama bắt buộc).
 - `.gitignore`: `.backup_*/`, `_to_delete/`, `scratch/`, `/work`. Chi tiết: docs/fixes/2026-11-11-machine-config.md
+
+## 2026-11-11 — Bộ cài máy mới 1 file (installer)
+
+- Mới `SETUP_MAY_MOI.bat` (ASCII+CRLF): tìm Python 3.12/3.11 (py launcher, đường dẫn thường gặp, `where python`,
+  bỏ stub WindowsApps); không có → hỏi `winget install Python.Python.3.12` (`--yes` bỏ hỏi) → `scripts\setup_machine.py`.
+- Mới `scripts/setup_machine.py` (stdlib): detect OS/CPU/RAM/ổ/GPU (`nvidia-smi` query + CUDA header)/công cụ/presets →
+  kế hoạch (torch cu128/cu124/cu121/cpu, hồ sơ rtx5060ti/rtx3060/small/cpu, ổ đặt venv, TEMP riêng) → cài (winget
+  ffmpeg/git, install.py) → GỘP config → doctor `check_env.py --offline` (`--online-check` mới gọi mạng) → việc tay.
+  Cờ `--dry-run --yes --cpu --gpu --cuda --envs-dir --skip-vieneu --with-funasr --with-ollama --online-check
+  --scan-requirements`. Log `scratch/setup_<ts>.log`.
+- `install.py`: GỘP `pineline.config.json` (không ghi đè; backup `scratch/config_backup/`), launcher `start.bat`/`start.sh`
+  trỏ `app_desktop.py`/`server.py` (trước trỏ `app.py` không tồn tại), Ollama pull mặc định TẮT (`--with-ollama`),
+  `--cuda` mặc định tự chọn theo GPU (trước cứng cu121), `--dry-run`, `--hf-home`, `--skip-tools`; torch sai build →
+  cài lại; ghi `.pineline_env_path`; pip tạm đặt ở `<envs>/.pip_tmp` (trước ở gốc code).
+- `run_v4.bat`, `run_tele_cmd.bat`: python `pineline_env` (`.pineline_env_path`) trước `C:\Python312`; TEMP không cứng
+  `D:\` (PINELINE_TEMP > `.pineline_tmp_path` > `D:\PinelineV4_tmp` nếu đã có > `scratch\tmp`); ASCII.
+- `install_funasr_safe.bat [PY] [BUILD]`, `install_ort_gpu.bat [VPY]`: nhận python từ tham số/biến, bỏ đường dẫn cứng.
+- `install/requirements-main.txt` + psutil, huggingface_hub; mới `install/requirements-optional.txt` (funasr, modelscope,
+  qwen-asr, transformers/sentencepiece, google-api, pythonnet).
+- Test `tests/test_setup_machine.py`. Backup: `.backup_edit_20261111_installer/`.

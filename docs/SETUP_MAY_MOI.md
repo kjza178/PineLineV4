@@ -1,9 +1,49 @@
 # Pineline V4 — cài trên MÁY MỚI / máy khác cấu hình
 
+## CÁCH NHANH (máy mới — 3 bước)
+
+1) **git clone** code về ổ nhiều chỗ trống:
+   ```bat
+   git clone https://github.com/kjza178/PineLineV4.git D:\PinelineV4
+   ```
+   (chưa có git: tải https://git-scm.com hoặc `winget install -e --id Git.Git`)
+2) **Nháy đúp `SETUP_MAY_MOI.bat`** (gốc thư mục V4). Nó tự: tìm Python 3.12/3.11 (không có → hỏi cài bằng winget) →
+   detect máy (Windows, CPU, RAM, ổ trống, GPU + driver/CUDA qua `nvidia-smi`, ffmpeg/git/winget/llama-server) →
+   in **Kế hoạch** (build torch, hồ sơ hiệu năng, nơi đặt venv) → hỏi **Y/N** → cài ffmpeg/git thiếu (winget),
+   tạo/cập nhật `pineline_env` + `vieneu_env` (torch đúng build) → GỘP `pineline.config.json` (không xoá key cũ,
+   không đặt bí mật) → tạo `work/ voices/ voice_samples/ cookies/ models/`, TEMP riêng → chạy doctor
+   `scripts\check_env.py --offline`. Log: `scratch\setup_<thời gian>.log`.
+3) **Làm các VIỆC TAY in ra cuối** (chép voices/, voice_samples/, models/, cookies/, key API; cài llama.cpp + presets
+   hoặc đặt `LLM_BASE_URL`; Aurora/Hongguo tuỳ chọn…) → chạy `run_v4.bat`.
+
+Cờ (thêm sau tên file trong CMD): `--dry-run` (chỉ xem kế hoạch, không cài) · `--yes` (không hỏi) · `--cpu` / `--gpu` ·
+`--cuda cu128|cu124|cu121` · `--envs-dir E:\envs` · `--skip-vieneu` · `--with-funasr` · `--with-ollama` · `--online-check`.
+Chạy lại nhiều lần an toàn (venv có rồi → chỉ cập nhật; torch sai build → cài lại đúng build).
+
+| GPU / driver (nvidia-smi) | torch build |
+|---|---|
+| compute_cap ≥ 12.0 (RTX 50 / Blackwell, vd 5060 Ti) hoặc driver CUDA ≥ 12.8 | `cu128` (Blackwell + driver cũ → cảnh báo cập nhật driver ≥ 570) |
+| driver CUDA 12.4–12.7 | `cu124` |
+| driver CUDA 12.1–12.3 (vd 3060 + driver 537, CUDA 12.2) | `cu121` |
+| GPU cũ compute < 7.0 (Pascal/Maxwell) + driver ≥ 12.8 | `cu124` |
+| driver CUDA < 12.1 | cảnh báo cập nhật driver, cài `cpu` (trừ khi `--gpu`) |
+| không có GPU NVIDIA | `cpu` (VIENEU/OMNI_DEVICE=cpu, RENDER_ENCODER=x264) |
+
+Hồ sơ hiệu năng: tên GPU chứa 5060 → `pineline.config.rtx5060ti.json`, 3060 → `rtx3060.json`; khác thì theo VRAM
+(≥16GB → như 5060 Ti, ~12GB → như 3060, <12GB → nhẹ). Chỉ lấy key hiệu năng (VIENEU_BATCH, VIENEU_CPU_THREADS,
+TRANSLATE_BATCH, LLM_NUM_CTX, RENDER_ENCODER…), không lấy đường dẫn của máy gốc; key bạn đã có thì GIỮ.
+
+`run_v4.bat` dùng python của `pineline_env` (đọc `.pineline_env_path` do setup ghi — venv có thể ở thư mục cha/ổ khác)
+trước `C:\Python312`; TEMP lấy từ `PINELINE_TEMP` / `.pineline_tmp_path` (fallback `scratch\tmp`).
+
+---
+
 Cập nhật 2026-11-11 (machine-config). Mọi thứ phụ thuộc máy (cổng llama/Aurora/Hongguo, thư mục presets/model/thư viện,
 lệnh đổi preset) giờ là **key trong `pineline.config.json`** — không phải sửa code. Mặc định = cấu hình máy gốc.
 
 Kiểm tra nhanh mọi thứ: **`python scripts\check_env.py`** (doctor; xem mục 8).
+
+Chi tiết / làm tay từng bước (nếu không dùng SETUP_MAY_MOI.bat) — xem các mục dưới.
 
 ## 0. Lấy code (V4 — từ git)
 
@@ -25,7 +65,7 @@ model, backup. Phần 5 liệt kê thứ phải chép tay.
 | **Driver NVIDIA** mới | `nvidia-smi` phải ra GPU. RTX 50-series (Blackwell) cần driver mới + `--cuda cu128`. |
 | **Python 3.11 hoặc 3.12** (64-bit, Add to PATH) | Không dùng 3.13 Store. |
 | **FFmpeg** (ffmpeg + ffprobe trong PATH) | `winget install Gyan.FFmpeg`, mở lại CMD, `ffmpeg -version`. |
-| **install.py** | `python install.py --gpu --cuda cu128 --skip-ollama-pull` — tạo `pineline_env` + `vieneu_env`, ghi `pineline.config.json`. |
+| **install.py** | `python install.py --gpu --cuda cu128   (Ollama pull mặc định TẮT; --dry-run để xem trước)` — tạo `pineline_env` + `vieneu_env`, ghi `pineline.config.json`. |
 
 **Ollama KHÔNG còn bắt buộc** (bản cũ ghi vậy là sai): code dịch/review gọi LLM OpenAI-compatible qua `LLM_BASE_URL`
 (máy gốc: llama-server :8083 + 9router). Ollama chỉ dùng nếu bạn chọn model `local/...`.
