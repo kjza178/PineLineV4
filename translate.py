@@ -28,7 +28,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait as _fut_wait
 from pathlib import Path
 
 # Đảm bảo stdout/stderr luôn UTF-8 trên Windows console
@@ -100,6 +102,106 @@ def _is_llama_local_model(m: str | None) -> bool:
     if mc in ("local", "llama", "default"):
         return True
     return any(p in mc for p in ("gemma4-12b", "gemma4-26b", "qwen36", "qat", "mtp"))
+
+
+def _review_parallel_workers(work_dir: Path | None, rmodel: str | None) -> int:
+    """Số worker fan-out REVIEW. Local LLM = 1; aurora_parallel / REVIEW_PARALLEL>1 → N.
+
+    Studio SOP: 1 job/ghế; parallel chỉ chia lô soát cloud (Aurora), không chạy 2 job.
+    """
+    if _is_llama_local_model(rmodel):
+        return 1
+    try:
+        w_env = int(str(_cfg_get("REVIEW_PARALLEL", "0") or "0").strip() or "0")
+    except (TypeError, ValueError):
+        w_env = 0
+    mode = ""
+    if work_dir is not None:
+        try:
+            from batch_config import review_backup_mode
+            qo = (Manifest(Path(work_dir)).data.get("queue_opts") or {})
+            mode = review_backup_mode(qo)
+        except Exception:  # noqa: BLE001
+            mode = ""
+    if not mode:
+        mode = str(_cfg_get("REVIEW_BACKUP", "off") or "off").strip().lower()
+    # Trần cứng 32 — Aurora pool chịu được fan-out cao; quá cao dễ 429.
+    try:
+        hard_cap = int(str(_cfg_get("REVIEW_PARALLEL_MAX", "32") or "32").strip() or "32")
+    except (TypeError, ValueError):
+        hard_cap = 32
+    hard_cap = max(8, min(hard_cap, 64))
+    if mode == "aurora_parallel" or w_env > 1:
+        if w_env > 1:
+            return max(1, min(w_env, hard_cap))
+        try:
+            default_w = int(str(_cfg_get("REVIEW_PARALLEL_DEFAULT", "24") or "24").strip() or "24")
+        except (TypeError, ValueError):
+            default_w = 24
+        return max(1, min(default_w, hard_cap))
+    return 1
+
+
+def _review_chunk_with_fallback(
+    chunk_exp: list[dict],
+    chunk: list[dict],
+    plan_block: str,
+    prev_ctx: list[dict],
+    *,
+    target: str,
+    rmodel: str,
+    plan: dict,
+    exemplars_pool: list[dict],
+) -> tuple[dict, str]:
+    """Chạy 1 lô review_batch; cloud lỗi quota/timeout → fallback local 1 lần.
+
+    Returns (fixes, model_used). fixes = None nghĩa là LÔ LỖI (không được đánh rv —
+    fix 2026-11-11 B1: trước đây trả {} → câu chưa soát bị coi là đã soát).
+    """
+    try:
+        fixes = review_batch(
+            chunk_exp, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
+            exemplars_pool=exemplars_pool,
+        ) or {}
+        return fixes, rmodel
+    except Exception as e:  # noqa: BLE001
+        err_str = str(e).lower()
+        is_out = (
+            any(
+                w in err_str
+                for w in (
+                    "429", "token", "quota", "exhausted", "rate limit",
+                    "exceeded", "timeout", "unavailable", "500", "502", "503",
+                )
+            )
+            or isinstance(e, LLMUnavailable)
+            or "requests" in type(e).__module__
+        )
+        if is_out and not _is_llama_local_model(rmodel):
+            local_rev = _cfg_get("REVIEW_PRESET", "qwen36-turbo")
+            print(
+                f"\n[review] ⚠️ Cloud REVIEW lỗi/quota: {e}\n"
+                f"[review] 🚀 Fallback local {local_rev}",
+                flush=True,
+            )
+            try:
+                import preset_switcher
+                if not preset_switcher.switch_preset(local_rev, max_wait_sec=180):
+                    print(f"[review] ❌ Không mở được local {local_rev} — lô coi là LỖI", flush=True)
+                    return None, rmodel
+                local_m = f"llama/{local_rev}"
+                fixes = review_batch(
+                    chunk_exp, plan_block, prev_ctx, target=target, model=local_m,
+                    plan=plan, exemplars_pool=exemplars_pool,
+                ) or {}
+                return fixes, local_m
+            except Exception as e_fb:  # noqa: BLE001
+                print(f"[review] ❌ Fallback local lỗi: {e_fb}", flush=True)
+                return None, rmodel
+        if isinstance(e, LLMUnavailable):
+            raise
+        print(f"[review] Lô lỗi (không đánh rv, sẽ thử lại): {e}", flush=True)
+        return None, rmodel
 
 # Ngữ cảnh trước mỗi lô — lô nhỏ + ctx vừa phải = nhớ tên riêng tốt hơn
 CTX_LINES = int(_cfg_get("TRANSLATE_CTX_LINES", "6") or 6)
@@ -2151,6 +2253,157 @@ def _heuristic_nonsense_flags(rows: list[dict]) -> list[int]:
     return sorted(set(out))
 
 
+def _pass1_max_upload_bytes() -> int:
+    """Trần 1 file upload Pass1 (mặc định 5MB). Lớn hơn → chia chunk upload full."""
+    try:
+        return max(
+            50_000,
+            int(str(_cfg_get("REVIEW_PASS1_MAX_UPLOAD_BYTES", "5242880") or "5242880").strip() or "5242880"),
+        )
+    except (TypeError, ValueError):
+        return 5_242_880
+
+
+def _pass1_chunk_cues() -> int:
+    """Số cue / chunk khi chia file (đọc full bằng nhiều upload)."""
+    try:
+        return max(200, int(str(_cfg_get("REVIEW_PASS1_CHUNK_CUES", "1000") or "1000").strip() or "1000"))
+    except (TypeError, ValueError):
+        return 1000
+
+
+def _pass1_chat_model(use_model: str) -> str:
+    if str(use_model).lower().startswith(("chatgpt/", "aurora/")):
+        return use_model
+    return f"chatgpt/{use_model.split('/')[-1]}"
+
+
+def _pass1_merge_chunk_results(parts: list[dict]) -> dict:
+    """Gộp JSON Pass1 từ nhiều chunk file — phủ đủ toàn phim."""
+    nonsense: list[int] = []
+    pairs: list[list[int]] = []
+    briefs: list[str] = []
+    registers: list[str] = []
+    notes: list[str] = []
+    for data in parts:
+        if not isinstance(data, dict):
+            continue
+        for x in data.get("nonsense_i") or []:
+            try:
+                nonsense.append(int(x))
+            except (TypeError, ValueError):
+                pass
+        for p in data.get("half_cue_pairs") or []:
+            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                try:
+                    pairs.append([int(p[0]), int(p[1])])
+                except (TypeError, ValueError):
+                    pass
+        b = str(data.get("style_brief") or "").strip()
+        if b:
+            briefs.append(b)
+        r = str(data.get("register") or "").strip()
+        if r:
+            registers.append(r)
+        if isinstance(data.get("notes"), list):
+            notes.extend(str(x) for x in data["notes"] if x)
+    # brief: nối các tóm tắt chunk (không mất thông tin phần)
+    brief = " | ".join(briefs)[:800] if briefs else ""
+    register = registers[0] if registers else ""
+    # unique pairs
+    seen_p: set[tuple[int, int]] = set()
+    uniq_pairs: list[list[int]] = []
+    for a, b in pairs:
+        key = (a, b)
+        if key not in seen_p:
+            seen_p.add(key)
+            uniq_pairs.append([a, b])
+    return {
+        "style_brief": brief,
+        "register": register,
+        "nonsense_i": sorted(set(nonsense)),
+        "half_cue_pairs": uniq_pairs,
+        "notes": notes[:40],
+        "n_chunks": len(parts),
+    }
+
+
+def _pass1_upload_one_srt(
+    srt_path: Path,
+    prompt: str,
+    *,
+    use_model: str,
+    timeout: int,
+    label: str = "",
+) -> dict:
+    """Upload 1 SRT + hỏi GPT đọc file. Trả dict JSON hoặc {}."""
+    from llm import aurora_upload_file, chatgpt_chat_with_file
+
+    tag = f" {label}" if label else ""
+    print(f"[review-pass1] upload file{tag}: {srt_path.name} ({srt_path.stat().st_size/1024:.0f}KB)", flush=True)
+    up = aurora_upload_file(srt_path, purpose="assistants")
+    out = chatgpt_chat_with_file(
+        up["id"],
+        prompt,
+        model=_pass1_chat_model(use_model),
+        temperature=0.1,
+        max_tokens=4096,
+        json_mode=True,
+        timeout=timeout,
+        base=up.get("base"),
+        account_id=up.get("account_id") or None,
+    )
+    parsed = parse_json(out) if out else {}
+    if isinstance(parsed, dict) and not parsed.get("error"):
+        return parsed
+    return {}
+
+
+def _pass1_upload_full_via_chunks(
+    work_dir: Path,
+    rows: list[dict],
+    prompt: str,
+    *,
+    use_model: str,
+    timeout: int,
+) -> dict:
+    """Chia full script thành nhiều SRT → upload từng phần → GPT đọc hết (không chat sample)."""
+    ordered = [r for r in rows if isinstance(r, dict) and "i" in r]
+    if not ordered:
+        return {}
+    chunk_n = _pass1_chunk_cues()
+    parts: list[dict] = []
+    n_parts = (len(ordered) + chunk_n - 1) // chunk_n
+    print(
+        f"[review-pass1] FULL via chunk upload: {len(ordered)} cue → {n_parts} file ×~{chunk_n}",
+        flush=True,
+    )
+    for p in range(n_parts):
+        chunk_rows = ordered[p * chunk_n : (p + 1) * chunk_n]
+        cpath = write_review_pair_srt(
+            work_dir, chunk_rows, name=f"sub.review_pair.p{p + 1:02d}.srt"
+        )
+        chunk_prompt = (
+            prompt
+            + f"\nĐây là PHẦN {p + 1}/{n_parts} của phim (đọc hết phần này; "
+            f"i nằm trong file). style_brief chỉ cho phần này.\n"
+        )
+        try:
+            got = _pass1_upload_one_srt(
+                cpath, chunk_prompt, use_model=use_model, timeout=timeout,
+                label=f"chunk {p + 1}/{n_parts}",
+            )
+            if got:
+                parts.append(got)
+            else:
+                print(f"[review-pass1] chunk {p + 1}/{n_parts} trống/lỗi parse", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"[review-pass1] chunk {p + 1}/{n_parts} lỗi: {e}", flush=True)
+    if not parts:
+        return {}
+    return _pass1_merge_chunk_results(parts)
+
+
 def run_review_pass1_full_vi(
     work_dir: Path,
     rows: list[dict],
@@ -2158,10 +2411,11 @@ def run_review_pass1_full_vi(
     *,
     model: str | None = None,
 ) -> dict:
-    """Pass1: đọc TOÀN BỘ SRT ZH+VI → style_brief + flag câu vô nghĩa/nửa câu.
+    """Pass1: GPT đọc FULL pair SRT qua upload file (không thay bằng chat mẫu).
 
-    Ưu tiên upload file (ChatGPT/Aurora :3377) giống PLAN_MODE=file.
-    Fallback: chat local/cloud với bản text rút gọn nếu upload lỗi.
+    1) Upload 1 file nếu ≤ MAX_UPLOAD_BYTES.
+    2) Fail / file quá lớn → chia chunk SRT, upload hết các phần, gộp kết quả.
+    3) Chat sample chỉ khi REVIEW_PASS1_ALLOW_CHAT_FALLBACK=1 (mặc định TẮT).
     """
     work_dir = Path(work_dir)
     plan = plan if isinstance(plan, dict) else {}
@@ -2174,11 +2428,18 @@ def run_review_pass1_full_vi(
     flags = _heuristic_nonsense_flags(rows)
     srt_path = write_review_pair_srt(work_dir, rows)
     n_lines = sum(1 for r in rows if isinstance(r, dict) and (r.get("vi") or r.get("zh")))
-    print(f"[review-pass1] đọc full pair SRT ({n_lines} câu) → {srt_path.name}", flush=True)
+    try:
+        srt_size = int(srt_path.stat().st_size) if srt_path.is_file() else 0
+    except OSError:
+        srt_size = 0
+    print(
+        f"[review-pass1] FULL file mode ({n_lines} câu, {srt_size/1024:.0f}KB) → {srt_path.name}",
+        flush=True,
+    )
 
     prompt = (
-        "Bạn là biên tập phụ đề Việt. File đính kèm = TOÀN BỘ cặp ZH|VI (mỗi cue có [i=N]).\n"
-        "ĐỌC HẾT mạch thoại — không đoán từ vài câu.\n"
+        "Bạn là biên tập phụ đề Việt. File đính kèm = cặp ZH|VI (mỗi cue có [i=N]).\n"
+        "ĐỌC HẾT nội dung file đính kèm — không đoán từ vài câu.\n"
         "Nhiệm vụ: (1) tóm style_brief văn phong VI nên giữ; "
         "(2) liệt kê i các câu VI VÔ NGHĨA / nửa câu / đuôi treo do ASR cắt "
         "(vd «Tôi cũng vậy, trước đó.» rồi câu sau mới có nội dung); "
@@ -2199,69 +2460,62 @@ def run_review_pass1_full_vi(
     except ValueError:
         timeout = 900
     timeout = max(120, min(timeout, 1800))
+    max_b = _pass1_max_upload_bytes()
 
-    # Phim dài (vd 3900 cue): upload full SRT dễ treo/timeout → dùng sample+heuristic.
-    try:
-        max_up = int(_cfg_get("REVIEW_PASS1_MAX_UPLOAD", "800") or 800)
-    except ValueError:
-        max_up = 800
-    use_upload = n_lines <= max(100, max_up)
-    if use_upload:
+    # 1) Một file full nếu vừa trần
+    if srt_size > 0 and srt_size <= max_b:
         try:
-            from llm import aurora_upload_file, chatgpt_chat_with_file
-            up = aurora_upload_file(srt_path, purpose="assistants")
-            out = chatgpt_chat_with_file(
-                up["id"],
-                prompt,
-                model=use_model if str(use_model).lower().startswith(("chatgpt/", "aurora/")) else f"chatgpt/{use_model.split('/')[-1]}",
-                temperature=0.1,
-                max_tokens=4096,
-                json_mode=True,
-                timeout=timeout,
-                base=up.get("base"),
-                account_id=up.get("account_id") or None,
+            data = _pass1_upload_one_srt(
+                srt_path, prompt, use_model=use_model, timeout=timeout, label="full"
             )
-            parsed = parse_json(out) if out else {}
-            if isinstance(parsed, dict) and not parsed.get("error"):
-                data = parsed
         except Exception as e:  # noqa: BLE001
-            print(f"[review-pass1] upload/file lỗi ({e}) → fallback text", flush=True)
+            print(f"[review-pass1] upload full lỗi ({e}) → thử chunk file", flush=True)
+            data = {}
     else:
         print(
-            f"[review-pass1] skip upload ({n_lines} câu > {max_up}) → sample+heuristic",
+            f"[review-pass1] file {srt_size/1024:.0f}KB > {max_b/1024:.0f}KB → chunk upload full",
             flush=True,
         )
 
+    # 2) Chunk upload — vẫn đọc HẾT cue qua file, không chat sample
     if not data:
-        # Fallback: gửi tối đa ~120 cue (đầu/giữa/cuối + heuristic flags)
-        ordered = [r for r in rows if isinstance(r, dict) and "i" in r]
-        pick_idx = set(range(min(40, len(ordered))))
-        if len(ordered) > 80:
-            mid = len(ordered) // 2
-            pick_idx.update(range(mid - 20, mid + 20))
-            pick_idx.update(range(max(0, len(ordered) - 40), len(ordered)))
-        for i in flags:
-            for j, r in enumerate(ordered):
-                try:
-                    if int(r["i"]) == int(i):
-                        pick_idx.update(range(max(0, j - 1), min(len(ordered), j + 2)))
-                except (TypeError, ValueError):
-                    pass
-        sample = []
-        for j in sorted(pick_idx):
-            if 0 <= j < len(ordered):
-                r = ordered[j]
-                sample.append(
-                    f"[i={r.get('i')}] ZH: {str(r.get('zh') or '')[:80]} | "
-                    f"VI: {str(r.get('vi') or '')[:100]}"
-                )
+        try:
+            data = _pass1_upload_full_via_chunks(
+                work_dir, rows, prompt, use_model=use_model, timeout=timeout,
+            )
+        except Exception as e:  # noqa: BLE001
+            print(f"[review-pass1] chunk upload lỗi: {e}", flush=True)
+            data = {}
+
+    # 3) Chat sample — TẮT mặc định (user cần GPT đọc full file)
+    allow_chat = (_cfg_get("REVIEW_PASS1_ALLOW_CHAT_FALLBACK", "0") or "0").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if not data and allow_chat:
+        print("[review-pass1] ALLOW_CHAT_FALLBACK=1 — sample chat (không full)", flush=True)
+        try:
+            max_fb = int(str(_cfg_get("REVIEW_PASS1_FALLBACK_CUES", "120") or "120").strip() or "120")
+        except (TypeError, ValueError):
+            max_fb = 120
+        # tái dùng helper cũ nếu còn; không thì sample đầu/giữa/cuối
+        sample_rows = [r for r in rows if isinstance(r, dict) and "i" in r]
+        picks = list(range(min(40, len(sample_rows))))
+        if len(sample_rows) > 80:
+            mid = len(sample_rows) // 2
+            picks += list(range(mid - 20, mid + 20)) + list(range(len(sample_rows) - 40, len(sample_rows)))
+        picks = sorted(set(p for p in picks if 0 <= p < len(sample_rows)))[:max_fb]
+        sample = [
+            f"[i={sample_rows[j].get('i')}] ZH: {str(sample_rows[j].get('zh') or '')[:80]} | "
+            f"VI: {str(sample_rows[j].get('vi') or '')[:100]}"
+            for j in picks
+        ]
         try:
             out2 = chat(
                 [
                     {"role": "system", "content": "Biên tập phụ đề VI. CHỈ JSON."},
                     {"role": "user", "content": prompt + "\nMẫu cues:\n" + "\n".join(sample)},
                 ],
-                model=_rmodel(),
+                model=use_model or _rmodel(),
                 temperature=0.1,
                 json_mode=True,
                 max_tokens=3072,
@@ -2272,6 +2526,12 @@ def run_review_pass1_full_vi(
         except Exception as e2:  # noqa: BLE001
             print(f"[review-pass1] fallback chat lỗi: {e2}", flush=True)
             data = {}
+    elif not data:
+        print(
+            "[review-pass1] không có kết quả file — giữ heuristic local "
+            "(không chat sample; bật REVIEW_PASS1_ALLOW_CHAT_FALLBACK=1 nếu cần)",
+            flush=True,
+        )
 
     if not isinstance(data, dict):
         data = {}
@@ -2761,7 +3021,7 @@ def run_review(
     plan = json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else {}
     plan = ensure_hard_terms(plan)
     if plan_path.exists() or plan.get("terms"):
-        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(plan_path, plan, fsync=False)
     plan_block = _plan_block(plan)
 
     # 0. BẢO ĐẢM 100% CÂU CÓ BẢN DỊCH: Tự động phát hiện và dịch lấp đầy các câu còn trống trước khi rà soát
@@ -2832,6 +3092,17 @@ def run_review(
     total = len(rows)
     todo = [r for r in rows if force or not r.get("rv")]
     n_done = total - len(todo)
+    if not todo and not force and not missing_indices and not (n_asr or n_half):
+        # fix 2026-11-11 B7: QA gate gọi run_review lần 2 — không chạy lại pronoun GPT / hang LLM
+        n_missing0 = sum(1 for r in rows if not (r.get("vi") or "").strip())
+        prev0 = m.stage(STAGE) or {}
+        print(f"[review] Đã soát đủ {total} câu — bỏ qua hậu kỳ LLM lặp lại", flush=True)
+        return m.mark_done(
+            STAGE, script_path=str(script_path), glossary_path=str(plan_path),
+            n_segments=len(rows), n_missing=n_missing0,
+            model=prev0.get("model", _tmodel() or "default"),
+            reviewed=True, review_model=prev0.get("review_model") or rmodel,
+        )
     if todo:
         try:
             st0 = m.data.setdefault("stages", {}).setdefault("translate", {})
@@ -2846,12 +3117,10 @@ def run_review(
             m.save()
             plan = run_review_pass1_full_vi(work_dir, rows, plan, model=None)
             plan_block = _plan_block(plan)
-            plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+            atomic_write_json(plan_path, plan, fsync=False)
             sl = plan.get("style_lock")
             if isinstance(sl, dict):
-                (work_dir / "style_lock.json").write_text(
-                    json.dumps(sl, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
+                atomic_write_json(work_dir / "style_lock.json", sl, fsync=False)
         except Exception as e_p1:  # noqa: BLE001
             print(f"[review-pass1] bỏ qua (lỗi): {e_p1}", flush=True)
     print(f"[review] Model={rmodel} | soát {len(todo)}/{total} câu, lô {batch}.", flush=True)
@@ -2871,72 +3140,142 @@ def run_review(
     m.mark_running(STAGE)
     if is_local(rmodel):
         free_gpu_vram("trước soát")
+    workers = _review_parallel_workers(work_dir, rmodel)
+    if workers > 1 and todo:
+        print(
+            f"[review] Aurora∥ fan-out workers={workers} batch={batch} "
+            f"(1 job/ghế — chỉ parallel lô soát)",
+            flush=True,
+        )
     try:
+        # Chuẩn bị các lô (cùng logic ±1 cue / prev_ctx)
+        jobs: list[dict] = []
         for k in range(0, len(todo), batch):
-            if (work_dir / ".stop").exists():
-                atomic_write_json(script_path, rows)
-                raise RuntimeError("stopped by user")
             chunk = todo[k : k + batch]
-            chunk_ids = {int(r["i"]) for r in chunk if "i" in r}
             pos = pos_by_i.get(chunk[0]["i"], 0)
-            # Mở rộng ±1 cue để duty F thấy nửa câu cắt sang hàng kế.
             i0 = pos_by_i.get(chunk[0]["i"], 0)
             i1 = pos_by_i.get(chunk[-1]["i"], i0)
             exp0, exp1 = max(0, i0 - 1), min(len(rows), i1 + 2)
-            chunk_exp = rows[exp0:exp1]
-            prev_ctx = [rows[j] for j in range(max(0, pos - CTX_LINES), pos) if rows[j].get("vi")]
-            fixes = {}
-            try:
-                fixes = review_batch(
-                    chunk_exp, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
-                    exemplars_pool=rows,
-                ) or {}
-            except Exception as e:
-                err_str = str(e).lower()
-                is_out_of_tokens_or_quota = (
-                    any(w in err_str for w in ("429", "token", "quota", "exhausted", "rate limit", "exceeded", "timeout", "unavailable", "500", "502", "503"))
-                    or isinstance(e, LLMUnavailable)
-                    or "requests" in type(e).__module__
-                )
-                if is_out_of_tokens_or_quota and not _is_llama_local_model(rmodel):
-                    local_rev = _cfg_get("REVIEW_PRESET", "qwen36-turbo")
-                    print(f"\n[review] ⚠️ Model 31B (9router) gặp sự cố / hết tokens / quota: {e}", flush=True)
-                    print(f"[review] 🚀 KÍCH HOẠT DỰ PHÒNG: Tự động nạp Local REVIEW ({local_rev}) trên llama-server :8083...", flush=True)
-                    try:
-                        import preset_switcher
-                        preset_switcher.switch_preset(local_rev, max_wait_sec=180)
-                        rmodel = f"llama/{local_rev}"
-                        print(f"[review] ✅ Đã mở xong {local_rev}. Tiếp tục soát bằng Local!", flush=True)
-                        fixes = review_batch(
-                            chunk_exp, plan_block, prev_ctx, target=target, model=rmodel, plan=plan,
-                            exemplars_pool=rows,
-                        ) or {}
-                    except Exception as e_fallback:
-                        print(f"[review] ❌ Lỗi khi chuyển sang fallback local ({local_rev}): {e_fallback}", flush=True)
-                        fixes = {}
-                elif isinstance(e, LLMUnavailable):
-                    raise
-                else:
-                    print(f"[review] Lô {k // batch} lỗi, bỏ qua tạm: {e}")
-                    fixes = {}
-            # Áp fix cả cue ±1 (duty F); chỉ đánh rv cho chunk chính.
-            for r in chunk_exp:
-                if fixes.get(r["i"]):
-                    r["vi"] = normalize_vi_thousands(fixes[r["i"]])
-            for r in chunk:
-                r["rv"] = 1
-            n_done += len(chunk)
-            atomic_write_json(script_path, rows)
-            print(f"  ...soát {min(k + batch, len(todo))}/{len(todo)} (sửa {len(fixes)} câu)", flush=True)
-            st = m.data["stages"].get("translate", {})
-            st.update({
-                "status": "running", "review": True,
-                "review_progress": round(n_done / total * 100, 1) if total else 100,
-                "review_done": n_done, "review_total": total,
-                "review_model": rmodel, "updated_at": time.time(),
+            chunk_exp = [dict(r) for r in rows[exp0:exp1]]  # copy — parallel an toàn
+            prev_ctx = [
+                dict(rows[j])
+                for j in range(max(0, pos - CTX_LINES), pos)
+                if rows[j].get("vi")
+            ]
+            jobs.append({
+                "k": k,
+                "chunk": chunk,
+                "chunk_exp": chunk_exp,
+                "prev_ctx": prev_ctx,
             })
-            m.data["stages"]["translate"] = st
-            m.save()
+
+        write_lock = threading.Lock()
+        model_used = rmodel
+        failed_jobs: list[dict] = []
+
+        def _apply_result(job: dict, fixes: dict | None, model_u: str) -> None:
+            nonlocal n_done, model_used
+            chunk = job["chunk"]
+            chunk_ids = {int(r["i"]) for r in chunk if "i" in r}
+            # fix 2026-11-11 B4: chỉ nhận fix cho câu trong chunk_exp (chunk ±1), bỏ i ngoài lô
+            allowed_ids = {r.get("i") for r in (job.get("chunk_exp") or chunk)}
+            with write_lock:
+                if fixes is None:
+                    # fix 2026-11-11 B1: lô lỗi → KHÔNG đánh rv, gom để thử lại
+                    failed_jobs.append(job)
+                    print(f"  [review] ⚠️ lô {job['k']}… lỗi — giữ chưa rv ({len(chunk)} câu)", flush=True)
+                    return
+                n_out = sum(1 for k in fixes if k not in allowed_ids)
+                if n_out:
+                    print(f"  [review] bỏ {n_out} fix ngoài lô (i không thuộc chunk ±1)", flush=True)
+                model_used = model_u or model_used
+                # Áp fix theo i trên rows gốc; chỉ rv chunk chính
+                for r in rows:
+                    ii = r.get("i")
+                    if ii in allowed_ids and ii in fixes and fixes.get(ii):
+                        r["vi"] = normalize_vi_thousands(fixes[ii])
+                    if ii in chunk_ids:
+                        r["rv"] = 1
+                n_done += len(chunk)
+                atomic_write_json(script_path, rows)
+                print(
+                    f"  ...soát {min(job['k'] + batch, len(todo))}/{len(todo)} "
+                    f"(sửa {len(fixes)} câu, w={workers})",
+                    flush=True,
+                )
+                st = m.data["stages"].get("translate", {})
+                st.update({
+                    "status": "running", "review": True,
+                    "review_progress": round(n_done / total * 100, 1) if total else 100,
+                    "review_done": n_done, "review_total": total,
+                    "review_model": model_used,
+                    "review_parallel": workers,
+                    "updated_at": time.time(),
+                })
+                m.data["stages"]["translate"] = st
+                m.save()
+
+        def _run_job(job: dict) -> tuple[dict, dict, str]:
+            if (work_dir / ".stop").exists():
+                raise RuntimeError("stopped by user")
+            fixes, model_u = _review_chunk_with_fallback(
+                job["chunk_exp"], job["chunk"], plan_block, job["prev_ctx"],
+                target=target, rmodel=rmodel, plan=plan, exemplars_pool=rows,
+            )
+            return job, fixes, model_u
+
+        if workers <= 1 or len(jobs) <= 1:
+            for job in jobs:
+                if (work_dir / ".stop").exists():
+                    atomic_write_json(script_path, rows)
+                    raise RuntimeError("stopped by user")
+                _j, fixes, model_u = _run_job(job)
+                _apply_result(_j, fixes, model_u)
+                rmodel = model_u or rmodel
+        else:
+            # fix 2026-11-11 B5: kiểm .stop mỗi 2 s (không đợi request LLM xong) + không chờ thread đang bay
+            ex = ThreadPoolExecutor(max_workers=workers)
+            try:
+                futs = {ex.submit(_run_job, job): job for job in jobs}
+                pending = set(futs)
+                while pending:
+                    done, pending = _fut_wait(pending, timeout=2.0, return_when=FIRST_COMPLETED)
+                    if (work_dir / ".stop").exists():
+                        atomic_write_json(script_path, rows)
+                        raise RuntimeError("stopped by user")
+                    for fut in done:
+                        try:
+                            _j, fixes, model_u = fut.result()
+                        except RuntimeError:
+                            raise
+                        except Exception as e_job:  # noqa: BLE001
+                            print(f"[review] parallel job lỗi: {e_job}", flush=True)
+                            _j, fixes, model_u = futs[fut], None, rmodel
+                        _apply_result(_j, fixes, model_u)
+            finally:
+                ex.shutdown(wait=False, cancel_futures=True)
+            rmodel = model_used
+
+        # fix 2026-11-11 B1: thử lại tuần tự các lô lỗi 1 lượt; còn lỗi → DỪNG (không coi là đã soát)
+        if failed_jobs:
+            retry_jobs = sorted(failed_jobs, key=lambda j: j["k"])
+            failed_jobs.clear()
+            backoff = float(_cfg_get("REVIEW_RETRY_BACKOFF_SEC", "20") or 20)
+            print(f"[review] Thử lại {len(retry_jobs)} lô lỗi (tuần tự, nghỉ {backoff:.0f}s)…", flush=True)
+            for job in retry_jobs:
+                if (work_dir / ".stop").exists():
+                    atomic_write_json(script_path, rows)
+                    raise RuntimeError("stopped by user")
+                time.sleep(max(0.0, backoff))
+                _j, fixes, model_u = _run_job(job)
+                _apply_result(_j, fixes, model_u)
+            if failed_jobs:
+                n_fail = sum(len(j["chunk"]) for j in failed_jobs)
+                atomic_write_json(script_path, rows)
+                raise RuntimeError(
+                    f"REVIEW lỗi {len(failed_jobs)} lô ({n_fail} câu chưa soát) — "
+                    "không đánh rv; job sẽ park waiting_review và thử lại"
+                )
 
         apply_hard_term_locks(rows, plan)
         apply_style_polish(rows, plan)
@@ -2955,9 +3294,7 @@ def run_review(
         )
         if len(display) != n_before:
             print(f"[review] Tách câu dài (chỉ SRT): {n_before} -> {len(display)} dòng", flush=True)
-            (work_dir / "script.display.json").write_text(
-                json.dumps(display, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            atomic_write_json(work_dir / "script.display.json", display, fsync=False)
         atomic_write_json(script_path, rows)
         n_missing = sum(1 for r in rows if not (r.get("vi") or "").strip())
         if n_missing:
@@ -3299,7 +3636,7 @@ def run_translate(
                     series_plan=series_plan,
                     work_dir=work_dir,
                 )
-                plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+                atomic_write_json(plan_path, plan, fsync=False)
                 print(f"[plan] {len(plan.get('characters', []))} nhân vật, {len(plan.get('terms', []))} thuật ngữ, "
                       f"{len(plan.get('scenes', []))} phân cảnh, {len(plan.get('pronouns', []))} quy tắc xưng hô.")
             except Exception as e:  # noqa: BLE001
@@ -3332,14 +3669,12 @@ def run_translate(
         except Exception as e_pa:  # noqa: BLE001
             print(f"[plan] pronoun-analyze bỏ qua: {e_pa}", flush=True)
         plan = ensure_hard_terms(plan)
-        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(plan_path, plan, fsync=False)
         # style_lock.json mirror nếu có
         try:
             sl = plan.get("style_lock")
             if isinstance(sl, dict):
-                (work_dir / "style_lock.json").write_text(
-                    json.dumps(sl, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
+                atomic_write_json(work_dir / "style_lock.json", sl, fsync=False)
         except Exception:  # noqa: BLE001
             pass
         plan_block = _plan_block(plan)
@@ -3672,9 +4007,7 @@ def run_translate(
             print(f"[trans] Tách câu dài (display): {len(ordered)} -> {len(display)}", flush=True)
         else:
             print(f"[trans] CUT display: {len(display)} dòng (không đổi số)", flush=True)
-        (work_dir / "script.display.json").write_text(
-            json.dumps(display, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        atomic_write_json(work_dir / "script.display.json", display, fsync=False)
         (work_dir / "sub.vi.srt").write_text(to_srt(display, key="vi"), encoding="utf-8")
         if n_missing:
             print(f"[trans] WARN còn {n_missing} câu trống — vẫn đã CUT phần có vi", flush=True)

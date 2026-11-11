@@ -217,6 +217,26 @@ class Manifest:
         }
         self.save()
 
+    def set_stage(self, name: str, **payload) -> dict:
+        """Cập nhật/merge stage (vd. status=running + asr_engine=…).
+
+        Dùng bởi luồng auto-split ASR video dài — không thay mark_running/mark_done.
+        """
+        prev = dict(self.data.get("stages", {}).get(name) or {})
+        st = {**prev, **payload}
+        if payload.get("status") == "running":
+            st.setdefault("started_at", _now())
+            st["cur_text"] = payload.get("cur_text") or st.get("cur_text") or "đang chạy…"
+            st.pop("error", None)
+            st.pop("finished_at", None)
+        elif payload.get("status") == "done":
+            st.setdefault("finished_at", _now())
+        elif payload.get("status") == "failed":
+            st.setdefault("finished_at", _now())
+        self.data.setdefault("stages", {})[name] = st
+        self.save()
+        return st
+
     def mark_done(self, name: str, **payload) -> dict:
         prev = dict(self.data.get("stages", {}).get(name) or {})
         # Giữ voice/speed/engine nếu payload không truyền lại

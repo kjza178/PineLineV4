@@ -17,6 +17,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+
+def _self_base() -> str:
+    """URL server Pineline đang chạy brain (fix 2026-11-11: trước cứng :8801 → V4/V5 điều khiển nhầm V2)."""
+    b = (os.getenv("PINELINE_BASE") or "").strip().rstrip("/")
+    if b:
+        return b
+    port = (os.getenv("PINELINE_PORT") or "8801").strip() or "8801"
+    return f"http://127.0.0.1:{port}"
+
 # urllib dùng cho LLM HTTP fallback + infra ping
 
 
@@ -617,20 +626,20 @@ def _ensure_brain_runtime(work_root: Path) -> str:
 
     def queue_state() -> dict:
         try:
-            return _http_json("GET", "http://127.0.0.1:8801/api/queue/jobs", timeout=8)
+            return _http_json("GET", _self_base() + "/api/queue/jobs", timeout=8)
         except Exception as e:  # noqa: BLE001
             return {"error": str(e), "queue": [], "current": None}
 
     def queue_add(job_ids: list[str], opts: dict) -> dict:
         body = {"job_ids": job_ids, **(opts or {})}
         try:
-            return _http_json("POST", "http://127.0.0.1:8801/api/queue/jobs", body, timeout=30)
+            return _http_json("POST", _self_base() + "/api/queue/jobs", body, timeout=30)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
     def queue_stop() -> dict:
         try:
-            return _http_json("POST", "http://127.0.0.1:8801/api/queue/jobs/stop", {}, timeout=15)
+            return _http_json("POST", _self_base() + "/api/queue/jobs/stop", {}, timeout=15)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
 
@@ -669,7 +678,7 @@ def _ensure_brain_runtime(work_root: Path) -> str:
         try:
             return _http_json(
                 "POST",
-                f"http://127.0.0.1:8801/api/jobs/{job_id}/script-line",
+                f"{_self_base()}/api/jobs/{job_id}/script-line",
                 body,
                 timeout=30,
             )
@@ -680,7 +689,7 @@ def _ensure_brain_runtime(work_root: Path) -> str:
         try:
             return _http_json(
                 "POST",
-                f"http://127.0.0.1:8801/api/jobs/{job_id}/run/{stage}",
+                f"{_self_base()}/api/jobs/{job_id}/run/{stage}",
                 opts or {},
                 timeout=30,
             )
@@ -690,7 +699,7 @@ def _ensure_brain_runtime(work_root: Path) -> str:
     def stop_job(job_id: str) -> dict:
         try:
             return _http_json(
-                "POST", f"http://127.0.0.1:8801/api/jobs/{job_id}/stop", {}, timeout=20,
+                "POST", f"{_self_base()}/api/jobs/{job_id}/stop", {}, timeout=20,
             )
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "error": str(e)}
@@ -707,7 +716,7 @@ def _ensure_brain_runtime(work_root: Path) -> str:
         try:
             return _http_json(
                 "POST",
-                f"http://127.0.0.1:8801/api/agent/jobs/{job_id}/reset-state",
+                f"{_self_base()}/api/agent/jobs/{job_id}/reset-state",
                 {"stages": ["*"], "keep_asr": True, "restart": False},
                 timeout=60,
             )
@@ -793,7 +802,7 @@ def _run_agent_llm(
             "force_first_tool": force_first_tool or None,
         }).encode("utf-8")
         req = urllib.request.Request(
-            "http://127.0.0.1:8801/api/agent/chat",
+            _self_base() + "/api/agent/chat",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -1013,7 +1022,7 @@ def _progress_digest(work_root: Path) -> str:
     held: list[str] = []
     try:
         import urllib.request
-        with urllib.request.urlopen("http://127.0.0.1:8801/api/jobs", timeout=8) as resp:
+        with urllib.request.urlopen(_self_base() + "/api/jobs", timeout=8) as resp:
             jobs = json.loads(resp.read().decode("utf-8", "replace"))
         if not isinstance(jobs, list):
             jobs = []
@@ -1052,7 +1061,7 @@ def _progress_digest(work_root: Path) -> str:
     qnote = ""
     try:
         import urllib.request
-        with urllib.request.urlopen("http://127.0.0.1:8801/api/queue/jobs", timeout=5) as resp:
+        with urllib.request.urlopen(_self_base() + "/api/queue/jobs", timeout=5) as resp:
             q = json.loads(resp.read().decode("utf-8", "replace"))
         if isinstance(q, dict):
             n = len(q.get("jobs") or q.get("queue") or [])

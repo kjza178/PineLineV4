@@ -1,6 +1,6 @@
 ﻿# Hiện trạng PinelineV4 (port từ V2)
 
-_Cập nhật: 2026-11-10 ~19:20 — REVIEW=chatgpt/gpt-6; 60892 re-review CLI_
+_Cập nhật: 2026-11-11 ~00:10 — Studio SOP 1job + Aurora∥ (chờ restart :8801)_
 
 ## Dịch vụ
 
@@ -19,8 +19,9 @@ _Cập nhật: 2026-11-10 ~19:20 — REVIEW=chatgpt/gpt-6; 60892 re-review CLI_
 
 | Job | Phim | Trạng thái | Ghi chú |
 |---|---|---|---|
-| `60892cc63cb7_p01` | 造神… Phần 1/2 | REVIEW gpt-6 running (CLI) | Stop TTS; force re-review Aurora gpt-6. HOLD. |
-| `60892cc63cb7_p02` | 造神… Phần 2/2 | REVIEW gpt-6 running (CLI) | Stop Gemma; force re-review Aurora gpt-6. HOLD. |
+| `60892cc63cb7_p01` | 造神… Phần 1/2 | translate=done, tts=pending, unrev=0 | Soát xong; **orphan TTS** vì queue đã nhảy `365baf`. Cần xếp lại + restart park. |
+| `60892cc63cb7_p02` | 造神… Phần 2/2 | translate running / soát CLI | unrev còn; CLI ngoài queue. |
+| `365baf19df54` | Tạo thần từ nhãn dán p2 | queue **current** translate | Nhảy vào vì ghế trống sau HOLD/soát p01. |
 | `f9fe8deb4fa0` | 末世降临，我是末日生存方案供应商 (mùa 1, 9,6 h) | Done (13:58 ngày 6/10) | Tạo 6/10 từ file merged có sẵn, CONFIG BATCH. |
 | `3a2e5a5f4337` | 末世降临…第二季 (mùa 2, 3,8 h) | Done | Gộp chuẩn hoá 1920x1080 lúc 04:37 (285 tập lẫn 1922x1080), đã xoá tập lẻ. |
 | `05361da7c24c`, `77a8dd016e43` | (import local 14:35, 2,6 h mỗi job) | Done (77a8 đã upload 00:49 7/10, dính claim Content ID nhạc nền) | Tạo từ UI (`/api/jobs/local-path` + `/api/queue/group`), không phải feeder. |
@@ -50,6 +51,8 @@ Restart chỉ khi hàng đợi rảnh, hoặc user đồng ý (yes/no).
 
 ## Việc còn treo / cần user quyết
 
+- **11-11 ~03:05 — Chờ restart nạp fix B1–B10:** :8801 (V2), :8804 (V4), :8805 (V5 — lần đầu sau khi chuyển package). Chạy pytest trước (xem `docs/fixes/2026-11-11-*`). V2 đang chạy production → restart khi queue rảnh / user đồng ý.
+- **Restart :8801 nạp queue-park + Studio SOP / Aurora∥ REVIEW** — process cũ chưa có. Restart cắt `365baf` nếu đang dịch → hỏi yes/no. Sau: xếp `60892_p01` đầu hàng TTS; không CLI review song song queue.
 - **Job `9c3af49061a2` (video 5)** — VI hiện tại kém (audit); sandbox 6×90s NMT **149/194 improved, 0 worse** (docs/reviews/2026-11-09-job5-retranslate-compare.md). Remake full ASR+dịch+TTS+mux → hỏi yes/no. Caveat: SenseVoice/NMT còn lệch số.
 
 - **Chờ restart :8801** — nạp `translate.py` mới: REVIEW duty E + filter giữ merge; `apply_asr_stutter_heal` trước LLM + post-pass; không cắt `叮当叮当`. Fix `docs/fixes/2026-11-09-review-asr-merge.md`.

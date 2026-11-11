@@ -1228,7 +1228,7 @@ def get_job_reference_images(job_id: str = "", poster_name: str = "") -> list[by
         if not poster_bytes:
             try:
                 import urllib.parse
-                url = f"http://127.0.0.1:8801/api/hg/poster?name={urllib.parse.quote(poster_name)}"
+                url = f"http://127.0.0.1:{os.getenv('PINELINE_PORT') or '8801'}/api/hg/poster?name={urllib.parse.quote(poster_name)}"
                 req = urllib.request.Request(url, headers={"User-Agent": "Pineline"})
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     poster_bytes = _normalize_ref_jpeg(resp.read())

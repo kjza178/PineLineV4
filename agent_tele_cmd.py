@@ -871,7 +871,7 @@ def _fetch_poster_bytes(name: str) -> bytes | None:
     import urllib.parse
     # 1. Thử gọi /api/hg/poster của server Pineline 8801
     try:
-        url = f"http://127.0.0.1:8801/api/hg/poster?name={urllib.parse.quote(name)}"
+        url = f"{BASE}/api/hg/poster?name={urllib.parse.quote(name)}"
         req = urllib.request.Request(url, headers={"User-Agent": "Pineline"})
         with urllib.request.urlopen(req, timeout=5) as r:
             data = r.read()

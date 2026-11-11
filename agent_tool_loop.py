@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -440,7 +441,7 @@ def http_run_stage_wait(
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Pineline tool-loop CLI (HTTP)")
-    p.add_argument("--base", default="http://127.0.0.1:8801")
+    p.add_argument("--base", default=os.getenv("PINELINE_BASE") or "http://127.0.0.1:8801")
     p.add_argument("--job", required=True)
     p.add_argument("--stages", default="translate", help="csv: translate,tts,mux")
     p.add_argument("--force", action="store_true")

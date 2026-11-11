@@ -2,19 +2,19 @@
 
 Mới nhất trên cùng. Mỗi mục: file/hàm — thay đổi — cần restart gì. Chi tiết bug: docs/fixes/. Nhật ký phiên: docs/worklog/.
 
+## 2026-11-11
+
+- **Tối ưu B5/B6/B8/B10 (sync từ V2)** (~03:05). `translate.py`, `server.py` chép từ V2 (bản trước tối ưu giống hệt V4); `restart_server.py` vá `_job_parked`. Test `tests/test_optimize_b5_b6.py`. Workflow `docs/brain/workflow.html`. Bak `.backup_edit_20261111_optimize\`. **Restart :8804.**
+
+- **[V4] Fix REVIEW/park/cổng + subagent + Second Brain** (~02:45). `translate.py` (lô lỗi không rv, retry, lọc chunk_exp, bỏ soát lặp), `server.py` (park waiting_review retry `QUEUE_REVIEW_RETRY_SEC/MAX`, router tuỳ cây `routes_films`/`routes_uploader_settings`, `PINELINE_PORT`), `preset_switcher.py` (lock), `agent_brain*.py`/`meta_studio.py`/`agent_tele_cmd.py`/`agent_tool_loop.py` (URL theo cổng thật — trước gọi nhầm V2 :8801). Test mới `tests/test_review_fail_not_rv.py`, `tests/test_park_review_retry.py`. Tooling: `scripts/brain_build.py`, `scripts/tree_audit.py`, `docs/brain/`, `claude_setup/` (8 agent, 8 lệnh), `CLAUDE.md`. Bak `.backup_edit_20261111_fix-batch\`. Fix `docs/fixes/2026-11-11-review-fail-park-port.md`. Review `docs/reviews/2026-11-11-v4-v5-port-review.md`. **Restart :8804** để nạp.
+
+- **Pass1 upload theo KB** (~00:33). Bỏ chặn 800 cue; `REVIEW_PASS1_MAX_UPLOAD_BYTES=2MB`; fallback sample ≤120 cue (tránh Aurora 413). Bak zip `…_0033.zip` + codebak `…_pass1-upload-size\`. Fix `docs/fixes/2026-11-11-pass1-upload-size.md`. Sync V2/V4/V5. **Restart :8801** khi rảnh (Pass1 chỉ ảnh hưởng lần review mới; job đang lô∥ không cần cắt).
+
+- **Studio SOP 1 job/ghế + Aurora∥ REVIEW** (~00:10). User khóa: ASR→NMT→REVIEW (Aurora∥ / local fallback)→TTS→mux→Done→next. `_auto_gpu` chạy hết `run_review` trong ghế (không nhả sớm); `translate` fan-out `REVIEW_PARALLEL=6`; config keys. Bak `…_studio-1job-pipeline\`. Fix `docs/fixes/2026-11-11-studio-1job-pipeline.md`. Sync V2/V4/V5. **Restart :8801** để nạp (cắt `365baf` nếu đang dịch).
+
 ## 2026-11-10
 
-- **FireRed LID conf clamp** (~21:42). `t_confidences` exp>1 → AssertionError; clamp [0,1] lid+asr decoder. Bak `…_firered-lid-conf`. Fix `docs/fixes/2026-11-10-firered-lid-confidence-assert.md`. Sync vendor V2/V4/V5. **Không restart server** — ASR subprocess mới mới nạp.
-
-- **Brain quyết định qua AI agent** (~21:40). Không auto-HOLD rule; pending → LLM deep `pineline_job` + DECISION; TG NEED-LLM/DECISION. Context `phase`. Fix follow-up `docs/fixes/2026-11-10-brain-real-loop.md`. **Restart :8801 --after-current**.
-
-- **Brain real loop** (~21:37). Perceive phase mid_review/pre_tts/post_tts; ACT+TG; CLEAR khi high=0; HOLD chỉ pre_tts. Bak `…_2137.zip` + `…_brain-real-loop`. Fix `docs/fixes/2026-11-10-brain-real-loop.md`. Sync V2/V4/V5. **Restart :8801 --after-current** (không cắt ASR).
-
-- **Restart :8801 ngay nạp Brain/heal** (~21:29). User chọn 1: cắt ASR 365baf (~20%) → server PID mới; CLI review p01 giữ; skip quality_scan mid-review + heal nhận CLI; watchdog anti-jitter. ASR 365baf đã xếp chạy lại (nạp firered). **Đã restart.**
-
-- **Hoãn Brain HOLD khi đang soát** (~21:23). `agent_brain` + `_review_or_translate_busy`: không HOLD/spam TG giữa review. Bak `…_no-hold-mid-review`. Fix follow-up `docs/fixes/2026-11-10-review-heal-parallel.md`. Sync V2/V4/V5. **Restart :8801** (after-current).
-
-- **1-job REVIEW + heal/UI** (~21:00). Sai ops: 2 CLI gpt-6 song song → kill p02, chỉ p01. Heal bỏ qua translate mid-review; UI vẫn hiện soát khi pending. Bak `…_2057.zip` + `…_heal-review-cli`. Fix `docs/fixes/2026-11-10-review-heal-parallel.md`. Sync V2/V4/V5. **Restart :8801** để nạp heal; hard-refresh UI.
+- **Queue park HOLD/soát — không nhảy job** (~23:57). Studio invariant: 1 job→output. `_worker_loop` park khi `held`/`waiting_review`; `_auto_gpu` stamp `held_at=waiting_review`; QA gate stamp HOLD; `set_park_ready_hook`. Bak zip `…_2357.zip` + codebak `…_queue-park-held\`. Fix `docs/fixes/2026-11-10-queue-park-held.md`. Sync V2/V4/V5. **Restart :8801** (cắt current `365baf` nếu restart ngay — hỏi user).
 
 - **REVIEW voice loosen (Aurora)** (~19:28). User chọn nới REVIEW: văn phong tự nhiên khi vá lỗi, không full rewrite. `review_batch` + `_style_voice_banner`; restart CLI gpt-6 60892. Bak `…_review-voice-loosen`. Fix `docs/fixes/2026-11-10-review-voice-loosen.md`. **Không cần restart server** (CLI).
 

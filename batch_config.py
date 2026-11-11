@@ -287,8 +287,8 @@ def describe(opts: dict[str, Any] | None = None) -> str:
 def review_backup_mode(opts: dict | None = None) -> str:
     """off | aurora_parallel — Aurora GPT làm REVIEW (qua REVIEW_MODEL / AURORA_REVIEW_MODEL).
 
-    Fan-out parallel nhiều account vẫn tùy client; chọn aurora_parallel thì
-    `translate._resolve_review_model` ép model chatgpt (không còn Gemma im lặng).
+    aurora_parallel: ép model chatgpt + `translate.run_review` fan-out
+    `REVIEW_PARALLEL` worker (mặc định 6). Cloud lỗi → fallback local REVIEW_PRESET.
     """
     o = opts or load()
     v = str(o.get("review_backup") or "off").strip().lower()

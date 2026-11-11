@@ -28,9 +28,11 @@ Bug s?a sau 2026-09-26 (ch?a c? file ri?ng) ???c ghi trong `docs/CHANGELOG.md` +
 |------|------|-------------|
 
 
-| 2026-11-10 | [firered-lid-confidence-assert.md](./2026-11-10-firered-lid-confidence-assert.md) | FireRed LID assert t_confidences > 1 |
-| 2026-11-10 | [brain-real-loop.md](./2026-11-10-brain-real-loop.md) | Brain ACT/CLEAR/HOLD cửa TTS — không chỉ kêu HOLD |
-| 2026-11-10 | [review-heal-parallel.md](./2026-11-10-review-heal-parallel.md) | 2 CLI song song + heal làm mất/soát % tụt |
+| 2026-11-11 | [optimize-b5-b6-b8-b10.md](./2026-11-11-optimize-b5-b6-b8-b10.md) | Dừng REVIEW chậm · audio mux lệch · restart treo · ghi plan |
+| 2026-11-11 | [review-fail-park-port.md](./2026-11-11-review-fail-park-port.md) | REVIEW lỗi coi là đã soát · park treo · Brain V4 gọi :8801 |
+| 2026-11-11 | [pass1-upload-size.md](./2026-11-11-pass1-upload-size.md) | Pass1 413 — chặn upload theo số cue |
+| 2026-11-11 | [studio-1job-pipeline.md](./2026-11-11-studio-1job-pipeline.md) | SOP 1job ASR→NMT→Aurora∥→TTS→mux |
+| 2026-11-10 | [queue-park-held.md](./2026-11-10-queue-park-held.md) | HOLD/soát dở → nhảy job kế (mất 1→output) |
 | 2026-11-10 | [review-voice-loosen.md](./2026-11-10-review-voice-loosen.md) | Nới REVIEW Aurora — văn phong khi vá |
 | 2026-11-10 | [review-gpt6-aurora.md](./2026-11-10-review-gpt6-aurora.md) | UI Aurora không rà — chuyển gpt-6 |
 | 2026-11-10 | [brain-hang-llm-fix.md](./2026-11-10-brain-hang-llm-fix.md) | HOLD high hang — LLM trace/plan rồi mới mở |

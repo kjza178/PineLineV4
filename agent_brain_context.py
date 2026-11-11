@@ -8,6 +8,16 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import os
+
+
+def _self_base() -> str:
+    """URL server Pineline đang chạy brain (fix 2026-11-11: trước cứng :8801 → V4/V5 điều khiển nhầm V2)."""
+    b = (os.getenv("PINELINE_BASE") or "").strip().rstrip("/")
+    if b:
+        return b
+    port = (os.getenv("PINELINE_PORT") or "8801").strip() or "8801"
+    return f"http://127.0.0.1:{port}"
 
 
 def _ping(url: str, timeout: float = 2.0) -> dict[str, Any]:
@@ -182,7 +192,7 @@ def build_system_snapshot(work_root: Path, *, max_jobs: int = 25) -> dict[str, A
         queue = {"error": str(e)[:100]}
 
     infra = {
-        "server_8801": _ping("http://127.0.0.1:8801/api/agent/status"),
+        "server_8801": _ping(_self_base() + "/api/agent/status"),
         "sidecar_8802": _ping("http://127.0.0.1:8802/api/agent/status"),
         "llama_8083": _ping("http://127.0.0.1:8083/v1/models"),
         "chatgpt_3377": _ping("http://127.0.0.1:3377/v1/models"),

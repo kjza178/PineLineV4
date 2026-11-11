@@ -1,5 +1,13 @@
 # Quyáº¿t Äá»nh cá»§a user
 
+- **11-11 (V6 = một codebase thay V2/V4/V5)** User chốt: V6 dựng trên **V5 package** (đã có hotfix B1–B10) + phần riêng V4; mục tiêu **thay cả V2/V4/V5** (1 codebase, nhiều instance theo config: cổng/work/desktop); hot-reload render → **render chạy subprocess mỗi job**. Lộ trình F0 (tạo cây :8806 + job thật) → F1 B9 (Manifest.update qua hàm trạng thái) → F2 A (opts một nguồn) → F3 D (runtime + Stage/Gate, server chỉ app) → F4 C (sidecar client thuần) → F5 E (render subprocess) → F6 B11 + chuyển production. Mỗi pha: tree_audit 0, pytest, /review, 1 job thật so output với V2.
+
+- **11-11 (Pass1 upload theo dung lượng file)** User: file ~200–600KB / 4–5k cue không lẽ 413. → Bỏ trần 800 cue; upload nếu SRT ≤2MB; fallback chat ≤120 cue. Fix `docs/fixes/2026-11-11-pass1-upload-size.md`.
+
+- **11-11 (Studio SOP = 1 job / ghế tới Done)** User khóa vận hành: **1 job một lần** → ASR OK → NMT dịch → REVIEW (Aurora∥, fail → local) → TTS → mux → **Done** → next job. Không CLI soát ngoài queue; không nhảy job giữa chừng. → `_auto_gpu` chạy hết REVIEW trong ghế; `run_review` fan-out `REVIEW_PARALLEL`; queue park chỉ HOLD/soát fail. Fix `docs/fixes/2026-11-11-studio-1job-pipeline.md`.
+
+- **11-10 (Studio queue = 1 job → output, park khi HOLD/soát)** User: workflow studio trước luôn 1 job ra output rồi mới job kế; sau Brain nhảy linh tinh. → Queue **park** ghế khi held/waiting_review (không pop job kế); stamp `held_at=waiting_review`; clear khi soát xong / resume. Fix `docs/fixes/2026-11-10-queue-park-held.md`.
+
 - **11-10 (REVIEW nới văn phong, vẫn vá lỗi)** User chọn 1: Aurora REVIEW thêm lớp thoại tự nhiên khi sửa; không full dịch lại. → review_batch voice loosen. Fix `docs/fixes/2026-11-10-review-voice-loosen.md`.
 
 - **11-10 (REVIEW = chatgpt/gpt-6 Aurora)** User: gpt-6; UI đã chọn Aurora nhưng trước đó chỉ backup nhãn. → REVIEW_MODEL=chatgpt/gpt-6 + resolve aurora_parallel; re-review 60892. Fix `docs/fixes/2026-11-10-review-gpt6-aurora.md`.

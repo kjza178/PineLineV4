@@ -1,6 +1,6 @@
 # Kiến trúc PinelineV4
 
-_Cập nhật: 2026-11-02_
+_Cập nhật: 2026-11-10 — queue park HOLD/waiting_review (không nhảy job kế)_
 
 Pipeline lồng tiếng phim Trung → Việt, local Windows. Port từ V2; ops cổng **8804** / sidecar **8802**.
 
@@ -9,7 +9,7 @@ Pipeline lồng tiếng phim Trung → Việt, local Windows. Port từ V2; ops 
 ```mermaid
 flowchart LR
   subgraph S8804["server.py :8804 (FastAPI)"]
-    Q[job_queue worker<br/>1 job / lần] --> ST[stages: download → asr → translate → tts → mux]
+    Q[job_queue worker<br/>1 job / lần · park nếu HOLD/soát] --> ST[stages: download → asr → translate → tts → mux]
     AG[agent_core<br/>/api/agent/chat] --> TOOLS[tools: job, queue, config, hongguo, av_sync, heal]
     HG[hongguo_bridge<br/>merge queue thread]
     W[agent_watch<br/>nếu AGENT_WATCH=1]
@@ -46,13 +46,15 @@ flowchart LR
 | Sidecar / publish | `agent_tele_cmd`, `agent_autopilot`, `agent_feeder`, `film_db`, `auto_publisher`, `meta_studio`, `canva_client`, `preset_switcher` |
 | Ops | `restart_server`, `migrate_work`, `lib_check`, `app_desktop` |
 
-## Pipeline 1 job
+## Pipeline 1 job (Studio SOP)
+
+**1 ghế queue / lần:** ASR OK → NMT dịch → REVIEW (Aurora∥ `REVIEW_PARALLEL`, fail → local) → TTS → mux → **Done** → job kế. HOLD/QA → park ghế (không nhảy job). Không CLI review ngoài queue khi studio đang chạy.
 
 | Stage | Module | Output trong `work/<job_id>/` |
 |---|---|---|
 | download | `download`, `hongguo_bridge` | `source.mp4` hoặc `download.video_path` (direct) |
 | asr | `asr`, `fun_asr_nano`, `nano_fa_asr`, … | `asr.json`, `sub.zh.srt` (+ `AUDIO_TS_FIX`) |
-| translate | `translate`, `llm`, `series_glossary`, QA/name | `script.json` |
+| translate + review | `translate` NMT + `run_review` (Aurora∥/local) | `script.json` (`rv`) |
 | tts | `clone_tts`, `rvc_bridge` | `tts.json`, `seg_*.wav` |
 | assemble | `assemble` | `dub_fit.wav`, `tts_fit.json` |
 | mux | `render`, `sfx_lib`, `subs`, … | `output.mp4` |
