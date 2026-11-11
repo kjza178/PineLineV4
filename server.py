@@ -3161,13 +3161,13 @@ def api_fs_pick_dirs(
     import subprocess
     import sys
 
-    init = (initial or "").strip().strip('"') or "D:\\Lib"
+    init = (initial or "").strip().strip('"') or (_config_boot.get("LIBRARY_DIR") or "D:\\Lib")
     try:
         p0 = Path(init).expanduser()
         if p0.is_dir():
             init = str(p0.resolve())
     except OSError:
-        init = "D:\\Lib"
+        init = _config_boot.get("LIBRARY_DIR") or "D:\\Lib"
 
     script = _engine_script_path("pick_dirs_dialog.py")
     if not script.is_file():
@@ -5398,7 +5398,7 @@ def _link_or_copy(src: Path, dest: Path) -> str:
 
 
 def _direct_source_roots() -> list[Path]:
-    raw = _config_boot.get("SOURCE_DIRECT_ROOTS", r"D:\Lib") or ""
+    raw = _config_boot.get("SOURCE_DIRECT_ROOTS", _config_boot.get("LIBRARY_DIR", r"D:\Lib")) or ""
     return [Path(p.strip()) for p in raw.split(";") if p.strip()]
 
 

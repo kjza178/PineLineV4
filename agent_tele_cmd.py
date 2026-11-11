@@ -882,7 +882,7 @@ def _fetch_poster_bytes(name: str) -> bytes | None:
     # 2. Thử gọi Hongguo Downloader 8000
     try:
         import hongguo_bridge as hg
-        data, _ = hg.fetch_poster(name, "http://127.0.0.1:8000")
+        data, _ = hg.fetch_poster(name, hg.DEFAULT_BASE)
         if data and len(data) > 100:
             return data
     except Exception:

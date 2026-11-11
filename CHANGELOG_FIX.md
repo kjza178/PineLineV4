@@ -56,3 +56,14 @@ Tóm tắt: Driver NVIDIA mới + Python 3.12 + FFmpeg + Ollama (`pull gemma4` +
 → `python install.py --gpu --cuda cu128`  
 → FunASR: `install_funasr_safe.bat` (nếu dùng Fun/Paraformer)  
 → `dung-may-5060ti.bat`
+
+## 2026-11-11 — Cấu hình phụ thuộc máy (machine-config)
+
+- Mới `machine.py`: mọi cổng/thư mục phụ thuộc máy thành key `pineline.config.json` (mặc định = máy gốc):
+  `LLAMA_BASE_URL`, `AUTO_SWITCH_PRESETS`, `MODEL_PRESETS_DIR`, `MODEL_START_SCRIPT`, `MODEL_START_CMD`,
+  `CHATGPT_BASE_URL`/`AURORA_BASE_URL`, `AURORA_FALLBACK_URLS`, `CLOUD_LLM_BASE_URL`, `HONGGUO_BASE_URL`,
+  `MT_MODEL_DIR`, `LIBRARY_DIR`, `YT_UPLOADER_DIR`, `LIB_SAMPLE_DIR`.
+- preset_switcher: không có presets / `AUTO_SWITCH_PRESETS=0` → bỏ qua đổi preset, không lỗi.
+- Aurora không tới được → lỗi rõ, gợi ý đổi `PLAN_MODEL`/`REVIEW_MODEL`/`REVIEW_PASS1_MODEL`.
+- Doctor `python scripts\check_env.py [--offline]`; `docs/SETUP_MAY_MOI.md`; `CAI_MAY_MOI.md` viết lại (bỏ Ollama bắt buộc).
+- `.gitignore`: `.backup_*/`, `_to_delete/`, `scratch/`, `/work`. Chi tiết: docs/fixes/2026-11-11-machine-config.md

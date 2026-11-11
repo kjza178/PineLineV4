@@ -57,3 +57,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+
+# Backup / thùng rác / scratch của agent (2026-11-11 machine-config) — không commit
+.backup_*/
+_to_delete/
+scratch/
+# work là junction (git thấy như file, "work/" không khớp)
+/work

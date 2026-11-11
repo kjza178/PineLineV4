@@ -7,6 +7,10 @@ Telegram: AGENT_BRAIN_TELEGRAM=minimal|report|all|off (minimal=HOLD/L3; report/a
 """
 from __future__ import annotations
 
+try:  # machine-config 11-11: key phụ thuộc máy (cổng/thư mục) — V5/V6 core/, V4 phẳng
+    from core import machine as _machine
+except ImportError:  # pragma: no cover
+    import machine as _machine  # type: ignore
 import json
 import os
 import threading
@@ -154,8 +158,8 @@ def _ping(url: str, timeout: float = 2.5) -> tuple[bool, str]:
 def sense_infra() -> list[dict]:
     out: list[dict] = []
     checks = [
-        ("llama_8083", "http://127.0.0.1:8083/v1/models"),
-        ("chatgpt_3377", "http://127.0.0.1:3377/v1/models"),
+        ("llama_8083", _machine.llama_base_url() + "/models"),
+        ("chatgpt_3377", _machine.aurora_base_url() + "/models"),
         ("sidecar_8802", "http://127.0.0.1:8802/api/agent/status"),
     ]
     for name, url in checks:
