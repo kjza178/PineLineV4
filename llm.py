@@ -284,7 +284,8 @@ def _chatgpt_chat(
                             f"Aurora/ChatGPT {r.status_code} (no-retry): {r.text[:300]}"
                         )
                     if r.status_code in (429, 500, 502, 503, 504):
-                        raise requests.HTTPError(f"{r.status_code} {r.text[:200]}")
+                        # translate-b2 (port V4): gắn response → cloud_retry đọc được status + Retry-After
+                        raise requests.HTTPError(f"{r.status_code} {r.text[:200]}", response=r)
                     r.raise_for_status()
                     msg = (r.json().get("choices") or [{}])[0].get("message") or {}
                     content = (msg.get("content") or "").strip()
@@ -304,7 +305,7 @@ def _chatgpt_chat(
                     wait = min(2 ** attempt, 6)
                     print(f"[llm] chatgpt lỗi {base} {chosen} ({attempt + 1}): {e} — {wait}s", flush=True)
                     time.sleep(wait)
-    raise LLMUnavailable(f"Aurora/ChatGPT thất bại: {last_err} — {_machine.aurora_missing_hint()}")
+    raise LLMUnavailable(f"Aurora/ChatGPT thất bại: {last_err} — {_machine.aurora_missing_hint()}") from last_err
 
 
 def aurora_upload_file(path: str | Path, purpose: str = "assistants") -> dict:
@@ -478,7 +479,7 @@ def chatgpt_chat_with_file(
                     if r.status_code in (401, 403) and auth:
                         continue
                     if r.status_code >= 400:
-                        raise requests.HTTPError(f"{r.status_code} {r.text[:300]}")
+                        raise requests.HTTPError(f"{r.status_code} {r.text[:300]}", response=r)
                     msg = (r.json().get("choices") or [{}])[0].get("message") or {}
                     text = (msg.get("content") or "").strip()
                     if text and _file_unread_response(text):
@@ -506,7 +507,7 @@ def chatgpt_chat_with_file(
             f"Aurora nhận file_id nhưng GPT không đọc được (upload/chat lệch account). "
             f"Cần Aurora sticky X-Aurora-Account-Id. last={last_err}"
         )
-    raise LLMUnavailable(f"Aurora file-QA thất bại: {last_err}")
+    raise LLMUnavailable(f"Aurora file-QA thất bại: {last_err}") from last_err
 
 
 _pulled: set = set()   # cache trong tiến trình: model đã kiểm/pull rồi

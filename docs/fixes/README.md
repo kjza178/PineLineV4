@@ -302,3 +302,6 @@ Bug s?a sau 2026-09-26 (ch?a c? file ri?ng) ???c ghi trong `docs/CHANGELOG.md` +
 
 - 2026-11-10-firered-root-path.md — FIRERED_ROOT path + _check_stopped
 - 2026-11-10-firered-bf16-align.md — BF16 torchaudio forced_align
+- [2026-11-12-port-simple-demucs](2026-11-12-port-simple-demucs.md) — Port V2→V4: translate_simple mặc định (rollback `TRANSLATE_PIPELINE=legacy`) + Demucs trước ASR (`ASR_USE_DEMUCS=1`, fallback)
+- [2026-11-13-port-preflight-slice-junk](2026-11-13-port-preflight-slice-junk.md) — Port V2→V4: preflight video nguồn + extract_pcm bền + FireRed slice khoảng lặng + câu rác/parent chờ part (bản sao V2: `2026-11-12-video-preflight.md`, `2026-11-13-firered-slice-silence.md`, `2026-11-13-simple-junk-park.md`)
+- [2026-11-13-port-brain-finished-hold](2026-11-13-port-brain-finished-hold.md) — Port V2→V4: brain bỏ qua job đã xong (heal/remind/deep), park ⏸ tự thử lại vs HOLD ⛔ cần người (bản sao V2: `2026-11-13-brain-finished-hold.md`)

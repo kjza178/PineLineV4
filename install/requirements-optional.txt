@@ -20,5 +20,7 @@ google-auth
 google-auth-oauthlib
 # --- Hongguo license (hongguo_license_ensure.py, chỉ Windows + Hongguo Downloader)
 pythonnet
+# --- Dịch simple: sửa tên ZH đồng âm (translate_simple/zh_source.py, chỉ khi SIMPLE_ZH_SOURCE=1; thiếu gói vẫn chạy)
+pypinyin
 # --- UI Streamlit riêng của context_studio (context_studio/app_streamlit.py) — server.py KHÔNG cần
 streamlit

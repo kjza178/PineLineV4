@@ -1,6 +1,10 @@
 ﻿# Hiện trạng PinelineV4 (port từ V2)
 
-_Cập nhật: 2026-11-11 ~00:10 — Studio SOP 1job + Aurora∥ (chờ restart :8801)_
+_Cập nhật: 2026-11-12 — port translate_simple (mặc định) + Demucs trước ASR từ V2 (agent F4), **chờ restart :8804**_
+
+_2026-11-12 (agent P4): + Second Brain tin Telegram theo mẫu (`events`, digest ≥ 600 s), gỡ HOLD khi chạy tay, đóng dấu `manifest.translate_pipeline` theo job (job dở luồng cũ làm nốt luồng cũ) — `docs/fixes/2026-11-12-port-brain-hold-pipeline.md`, **chờ restart :8804**_
+
+_2026-11-13 (agent Q4): + preflight/chuẩn hoá video nguồn (`source_preflight`, `VIDEO_PREFLIGHT=1`), `extract_pcm_from_video` bền, FireRed slice tại khoảng lặng, lọc câu ASR rác + nhận nháp chưa soát (`SIMPLE_UNREVIEWED_TOLERANCE`), parent giữ ghế khi part park (`held_at=split_parts`) — `docs/fixes/2026-11-13-port-preflight-slice-junk.md`, **chờ restart :8804**_
 
 ## Dịch vụ
 
@@ -34,6 +38,7 @@ Thư mục job: `D:\PinelineV2_work\` (`Z:\PinelineV2\work` là junction trỏ s
 
 ## Cấu hình mặc định đang dùng
 
+- **Dịch (2026-11-12, port V2):** luồng `translate_simple` **mặc định** (không đặt `TRANSLATE_PIPELINE`); rollback `TRANSLATE_PIPELINE=legacy`. Cờ con `SIMPLE_PAIR_RULES/PAIR_FILL/ZH_SOURCE/LEARN_INFERRED/LEXICON_EXCLUDE_GOLDEN`=0. **ASR:** `ASR_USE_DEMUCS=1` (Demucs 1 lần/job, lỗi → audio gốc); rollback `ASR_USE_DEMUCS=0`. Chi tiết `docs/fixes/2026-11-12-port-simple-demucs.md`.
 - **LLM** (`pineline.config.json`): `CHATGPT_BASE_URL=http://127.0.0.1:3377/v1` (`sk-local`); `CHATGPT_TIMEOUT=900`; `PLAN_MODE=file` + `PLAN_MODEL=chatgpt/gpt-5-6-mini`; **Pronoun mix #1+#3** (PRONOUN_TITLE_POLICY/REVIEW_PRONOUN_MASK=1); UI review_backup default off; **NMT primary** `MT_ZH_VI=1` `ROLE=primary` `MODEL=auto`; **`REVIEW_MODEL=chatgpt/gpt-6`** (Aurora/:3377; `AURORA_REVIEW_MODEL` cùng); `TRANSLATE_PRESET` vẫn `gemma4-12b-qat-mtp-fast`; **`AGENT_BRAIN=1` `MODE=hybrid`** + **`BRAIN_HANG_FIX=1`** (`HANG_FIX_MODEL=chatgpt/gpt-5-6-mini`); standalone brain tới restart :8801; `NAME`/`PRONOUN` vẫn `chatgpt/gpt-5-6-mini`.
 - **CONFIG BATCH** (`work/logs/batch_config.json`): voice v2, speed 1.1, TTS vieneu, ASR fun_asr_nano, audio **sfx_lib** (từ 07/10 02:52: giọng Việt + tiếng động gốc CDX23 + nhạc kho YouTube theo mức; trước đó duck voice 0.2 / gốc 0.28), dịch batch, OCR tắt, fit bật, resolution source, zoom 1.1, lật ngang, grain weak, LUT/motion tắt, 4M, brand corners "SageReview".
 - **Che hardsub**: `HARDSUB_MODE=track`, `HARDSUB_STYLE=stretch`, không làm mềm (0/0), phủ hết ngang, đệm 15/13 px.

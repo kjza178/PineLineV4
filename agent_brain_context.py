@@ -135,12 +135,31 @@ def _job_brief(work_root: Path, d: Path) -> dict[str, Any] | None:
             "qa_blocked": agent.get("qa_blocked"),
             "held_at": agent.get("held_at"),
             "hold_reason": (agent.get("hold_reason") or "")[:120],
+            # fix 2026-11-13 agentN: park/split_wait = TỰ thử lại (KHÔNG phải HOLD cần người)
+            "hold_class": _hold_cls(agent),
         },
+        "finished": _finished(d),
         "qa_brain": qa,
         "stop": (d / ".stop").exists(),
         "has_script": (d / "script.json").is_file(),
         "has_output": (d / "output.mp4").is_file(),
     }
+
+
+def _hold_cls(agent: dict) -> str | None:
+    try:
+        from agent_hold import hold_class
+        return hold_class(agent)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _finished(d: Path) -> bool:
+    try:
+        from agent_hold import job_finished
+        return bool(job_finished(d))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def build_system_snapshot(work_root: Path, *, max_jobs: int = 25) -> dict[str, Any]:
@@ -262,6 +281,8 @@ Luật cứng:
 - post_tts (tts/mux done|running) → CẤM HOLD.
 - pre_tts + high QA → được HOLD sau khi đã pineline_job và nêu phương án.
 - .stop=true → bỏ qua. Không force ASR/download trừ evidence rõ.
+- finished=true (có output / đã đăng / đã ghép Full) → BỎ QUA hẳn: không heal, không DECISION.
+- agent.hold_class=park|split_wait = tạm dừng TỰ thử lại (không phải HOLD cần người) → không heal/HOLD, chỉ đợi.
 
 Kết thúc ≤10 dòng, format:
 DECISION <job_id>: stage=… | ok=yes/no | issue=… | plan=… | tools=…

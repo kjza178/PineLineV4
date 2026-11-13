@@ -1,5 +1,7 @@
 # Quyáº¿t Äá»nh cá»§a user
 
+- **11-12 (V4 = luồng dịch simple mặc định + Demucs trước ASR)** Theo hướng chủ dự án ở V2 (dịch simple thay run_translate+run_review; Demucs một lần/job trước ASR, không cắt cứng): port sang V4 với mặc định `TRANSLATE_PIPELINE`=simple (rollback `legacy`), `ASR_USE_DEMUCS=1` có fallback; cờ con simple tắt. Fix `docs/fixes/2026-11-12-port-simple-demucs.md`.
+
 - **11-11 (V6 = một codebase thay V2/V4/V5)** User chốt: V6 dựng trên **V5 package** (đã có hotfix B1–B10) + phần riêng V4; mục tiêu **thay cả V2/V4/V5** (1 codebase, nhiều instance theo config: cổng/work/desktop); hot-reload render → **render chạy subprocess mỗi job**. Lộ trình F0 (tạo cây :8806 + job thật) → F1 B9 (Manifest.update qua hàm trạng thái) → F2 A (opts một nguồn) → F3 D (runtime + Stage/Gate, server chỉ app) → F4 C (sidecar client thuần) → F5 E (render subprocess) → F6 B11 + chuyển production. Mỗi pha: tree_audit 0, pytest, /review, 1 job thật so output với V2.
 
 - **11-11 (Pass1 upload theo dung lượng file)** User: file ~200–600KB / 4–5k cue không lẽ 413. → Bỏ trần 800 cue; upload nếu SRT ≤2MB; fallback chat ≤120 cue. Fix `docs/fixes/2026-11-11-pass1-upload-size.md`.
