@@ -441,6 +441,7 @@ def test_fix_names_guarded():
 
 def test_pipeline_zh_source_flag(tmp_path, monkeypatch):
     monkeypatch.setenv("SIMPLE_ZH_SOURCE", "1")
+    monkeypatch.setenv("SIMPLE_ZH_OCR_MODE", "full")
     segs = [dict(s) for s in SEGS]
     segs[0]["text"] = "苏晴，我等你很久了吗。"
     wd = _job(tmp_path, segs=segs)

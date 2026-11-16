@@ -4,9 +4,9 @@ import types
 
 sys.modules.setdefault("pytest", types.ModuleType("pytest"))
 
-import server  # noqa: E402
 import routes_agent  # noqa: E402
 import routes_hg  # noqa: E402
+import server  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 

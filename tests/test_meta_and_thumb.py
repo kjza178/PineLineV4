@@ -87,6 +87,22 @@ def test_hooks_from_title_and_sanitize():
     assert meta_studio.vi_to_image_latin("Võ Đạo Cộng Điểm") == "VO DAO CONG DIEM"
     assert meta_studio.pick_badge_text("TRỌN BỘ THUYẾT MINH") in ("NEW", "HOT")
     assert meta_studio.pick_badge_text("HOT") == "HOT"
+    # Concept hooks không neo tên — giữ khi require_title_anchor=False / trust_hooks
+    concept = meta_studio.sanitize_hook_texts(
+        ["NHÃN DÁN", "ĐỔI TƯƠNG LAI"], title, require_title_anchor=False,
+    )
+    assert concept[0].startswith("NHÃN") and "TƯƠNG" in concept[1]
+    fin = meta_studio.finalize_thumb_meta_fields(
+        {
+            "hook_texts": ["TẠO THẦN PHẦN 1", "CHƯƠNG HẢI ĐẠI"],
+            "typography_direction": {"text_exact": ["NHÃN DÁN", "ĐỔI TƯƠNG LAI"], "color": "Emerald"},
+            "thumbnail_concept": {"selected_concept": "FATAL TAG AWAKENING"},
+        },
+        title_vi="Tạo Thần Phần 1: Chương Hải Đại",
+        job_id="t1",
+    )
+    assert "NHÃN" in fin["hook_texts"][0]
+    assert "NHAN DAN" in fin["master_image_prompt"] or "NHÃN" in "".join(fin["hook_texts"])
 
 
 def test_auto_publisher_no_fallback_thumb_on_ai_failure(tmp_path):

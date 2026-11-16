@@ -478,13 +478,27 @@ def test_cfg_defaults():
     assert cfg.conf_min() == 0.7 and cfg.pipeline_is_simple() is True
 
 
-def test_cfg_pipeline_rollback_legacy(monkeypatch):
-    for v in ("legacy", "LEGACY", "old", "0", "off"):
-        monkeypatch.setenv("TRANSLATE_PIPELINE", v)
-        assert cfg.pipeline_is_simple() is False and cfg.pipeline_mode() == "legacy"
-    for v in ("simple", "Simple"):
-        monkeypatch.setenv("TRANSLATE_PIPELINE", v)
-        assert cfg.pipeline_is_simple() is True
+def test_cfg_dynamic_batch_and_concurrency(monkeypatch):
+    # Concurrency
+    assert cfg.deepseek_concurrency() == 32
+    assert cfg.workers("deepseek/deepseek-flash") == 32
+    assert cfg.workers("deepseek-flash") == 32
+    # Non-deepseek uses SIMPLE_WORKERS (1 in fixture)
+    assert cfg.workers("chatgpt/gpt-4o") == 1
+    assert cfg.workers(None) == 1
+
+    # Dynamic batch calculation: ceil(n_rows / workers), clamped to [40, 200]
+    assert cfg.batch_for_rows(1500, 32) == 47   # ceil(1500/32) = 47 -> 1 đợt
+    assert cfg.batch_for_rows(10000, 32) == 200 # ceil(10000/32) = 313 -> kẹp 200 (~2 đợt)
+    assert cfg.batch_for_rows(150, 32) == 40    # ceil(150/32) = 5 -> kẹp sàn 40
+    assert cfg.batch_for_rows(1500, 8) == 188   # ceil(1500/8) = 188 -> 1 đợt 8 workers
+
+    # Explicit batch
+    assert cfg.batch_for_rows(1500, 32, explicit=50) == 50
+
+    # User configured SIMPLE_BATCH
+    monkeypatch.setenv("SIMPLE_BATCH", "60")
+    assert cfg.batch_for_rows(1500, 32) == 60
 
 
 def test_lexicon_seed_has_golden_idioms():
@@ -531,12 +545,7 @@ def _server_env(monkeypatch, tmp_path):
 def test_server_default_is_simple(monkeypatch, tmp_path):
     """port V4 2026-11-12: không đặt TRANSLATE_PIPELINE → luồng simple."""
     server, SP, calls, nxt = _server_env(monkeypatch, tmp_path)
-    assert server._translate_pipeline_simple() is True
-
-
-def test_server_legacy_calls_old_flow(monkeypatch, tmp_path):
-    server, SP, calls, nxt = _server_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("TRANSLATE_PIPELINE", "legacy")   # rollback luồng cũ
+    monkeypatch.setenv("TRANSLATE_PIPELINE", "legacy")   # F2: luồng cũ phải đặt tường minh
     monkeypatch.setattr(SP, "run", lambda *a, **k: calls.append("simple") or {"status": "done"})
     wd = _job(tmp_path, script=[{"i": s["i"], "zh": s["text"], "vi": "x", "rv": 1} for s in SEGS])
     assert server._translate_pipeline_simple() is False
@@ -586,13 +595,13 @@ def test_server_translate_flow_branch(monkeypatch, tmp_path):
     server, SP, calls, nxt = _server_env(monkeypatch, tmp_path)
     monkeypatch.setattr(SP, "run", lambda *a, **k: calls.append(("simple", k)) or {"status": "done"})
     monkeypatch.setattr(server, "run_review", lambda *a, **k: calls.append("old_review"))
+    monkeypatch.setenv("TRANSLATE_PIPELINE", "legacy")   # F2: luồng cũ phải đặt tường minh
     wd = _job(tmp_path)
-    monkeypatch.setenv("TRANSLATE_PIPELINE", "legacy")
     server._translate_flow(wd, "Tiếng Việt", None, None, False)
     assert calls == ["old_translate"]
     calls.clear()
-    wd = _job(tmp_path)   # F2: job mới (bỏ dấu legacy của lượt trên) rồi mới về mặc định simple
-    monkeypatch.delenv("TRANSLATE_PIPELINE")   # mặc định = simple
+    wd = _job(tmp_path)   # F2: job mới (bỏ dấu legacy của lượt trên) rồi mới bật simple
+    monkeypatch.setenv("TRANSLATE_PIPELINE", "simple")
     server._translate_flow(wd, "Tiếng Việt", None, "chatgpt/x", True)
     assert calls == [("simple", {"force": False, "rereview": True})]
 
