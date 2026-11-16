@@ -448,8 +448,13 @@ def test_pipeline_zh_source_flag(tmp_path, monkeypatch):
     asr_before = (wd / "asr.json").read_bytes()
     monkeypatch.setattr(zh_source, "detect", lambda wd: {"has_hardsub": True, "method": "fake"})
     import hardsub_asr
-    monkeypatch.setattr(hardsub_asr, "extract_hardsub_cues",
-                        lambda wd, **k: [{"start": 0.0, "end": 1.5, "zh": "苏晴，我等你很久了。"}])
+    import hs_ocr_fast
+    _cues_fake = [{"start": 0.0, "end": 1.5, "zh": "苏晴，我等你很久了。"}]
+    def _fake_cues(wd, **k):
+        (Path(wd) / "hardsub_cues.json").write_text(json.dumps(_cues_fake, ensure_ascii=False), encoding="utf-8")
+        return _cues_fake
+    monkeypatch.setattr(hardsub_asr, "extract_hardsub_cues", _fake_cues)
+    monkeypatch.setattr(hs_ocr_fast, "get_cues", _fake_cues)
     _nmt(monkeypatch)
     fake = FakeLLM("good")
     monkeypatch.setattr(llm, "chat", fake)
