@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `app_desktop.py` · **Lớp:** `control` · **147 dòng** (121 code) · **4 hàm**, **0 class** · sha1 `292ccaa9d9`
 
 > app_desktop.py — Desktop App Studio cho Pineline V4. Sử dụng Microsoft Edge WebView2 (native engine siêu nhẹ, mượt mà, không phụ thuộc trình duyệt). Tự động khởi động backend, hiển thị cửa sổ native, dọn dẹp sạch tiến tr
@@ -11,6 +11,7 @@
 
 - **Gọi tới (import nội bộ):** —
 - **Được dùng bởi:** —
+- **Được nhắc tên file `.py` (subprocess/script) bởi:** [install](./install.md)
 - **Test:** ❌ chưa có test import trực tiếp
 - **Thư viện ngoài:** `webview`
 

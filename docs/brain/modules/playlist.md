@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `playlist.py` · **Lớp:** `source` · **214 dòng** (182 code) · **5 hàm**, **0 class** · sha1 `c6911b1b49`
 
 > playlist.py — Bóc 1 link thành DANH SÁCH video rồi tải hàng loạt. Vì sao tách riêng: Pineline theo kiến trúc "1 job = 1 video" (mỗi video 1 thư mục work/<hash>/ có manifest + resume riêng). Nên KHÔNG nhét vòng lặp tải nh

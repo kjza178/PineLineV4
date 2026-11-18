@@ -2,15 +2,15 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `fileio.py` · **Lớp:** `control` · **104 dòng** (91 code) · **4 hàm**, **0 class** · sha1 `e820e73bf1`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `fileio.py` · **Lớp:** `control` · **104 dòng** (91 code) · **4 hàm**, **0 class** · sha1 `f05905b66d`
 
 > Ghi file an toàn giữa nhiều tiến trình (server :8801, sidecar :8802, script). atomic_write_text: ghi temp riêng (pid+thread) rồi os.replace — người đọc không bao giờ thấy file dở. file_lock: khoá liên tiến trình bằng fil
 
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** —
-- **Được dùng bởi:** [agent_autopilot](./agent_autopilot.md), [agent_quality](./agent_quality.md), [asr](./asr.md), [auto_publisher](./auto_publisher.md), [batch_config](./batch_config.md), [manifest](./manifest.md), [scripts.check_batch3](./scripts.check_batch3.md), [translate](./translate.md)
+- **Được dùng bởi:** [agent_autopilot](./agent_autopilot.md), [agent_qa_ask](./agent_qa_ask.md), [agent_qa_fix](./agent_qa_fix.md), [agent_quality](./agent_quality.md), [asr](./asr.md), [auto_publisher](./auto_publisher.md), [batch_config](./batch_config.md), [manifest](./manifest.md), [scripts.check_batch3](./scripts.check_batch3.md), [translate](./translate.md), [translate_simple.pipeline](./translate_simple.pipeline.md), [translate_simple.script_store](./translate_simple.script_store.md), [translate_simple.stage_draft](./translate_simple.stage_draft.md), [translate_simple.suggest](./translate_simple.suggest.md), [translate_simple.zh_source](./translate_simple.zh_source.md)
 - **Được nhắc tên file `.py` (subprocess/script) bởi:** [restart_server](./restart_server.md)
 - **Test:** ❌ chưa có test import trực tiếp
 
@@ -18,6 +18,8 @@
 flowchart LR
   fileio[[fileio]]
   agent_autopilot[agent_autopilot] --> fileio
+  agent_qa_ask[agent_qa_ask] --> fileio
+  agent_qa_fix[agent_qa_fix] --> fileio
   agent_quality[agent_quality] --> fileio
   asr[asr] --> fileio
   auto_publisher[auto_publisher] --> fileio
@@ -25,6 +27,11 @@ flowchart LR
   manifest[manifest] --> fileio
   scripts_check_batch3[scripts.check_batch3] --> fileio
   translate[translate] --> fileio
+  translate_simple_pipeline[translate_simple.pipeline] --> fileio
+  translate_simple_script_store[translate_simple.script_store] --> fileio
+  translate_simple_stage_draft[translate_simple.stage_draft] --> fileio
+  translate_simple_suggest[translate_simple.suggest] --> fileio
+  translate_simple_zh_source[translate_simple.zh_source] --> fileio
 ```
 
 ### Hàm & class top-level
@@ -40,7 +47,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (2):**
+- **Fix logs (3):**
+  - [Port V2 → V4: luồng dịch `translate_simple` (MẶC ĐỊNH) + Demucs trước ASR](../../fixes/2026-11-12-port-simple-demucs.md)
   - [2026-10-06 — Đợt 4 review: tranh chấp ghi, một bản tiến trình, checkpoint an toàn](../../fixes/2026-10-06-batch4-write-races.md)
   - [2026-10-06 — Đợt 3 review: opts một nguồn, config file-first, ghi nguyên tử](../../fixes/2026-10-06-batch3-single-source.md)
 - **Reviews:** [2026-11-02-v4-structure-sync](../../reviews/2026-11-02-v4-structure-sync.md)

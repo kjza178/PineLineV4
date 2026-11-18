@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `lib_check.py` · **Lớp:** `ops` · **411 dòng** (345 code) · **9 hàm**, **0 class** · sha1 `389bba4644`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `lib_check.py` · **Lớp:** `ops` · **411 dòng** (345 code) · **9 hàm**, **0 class** · sha1 `dcebfed371`
 
 > lib_check.py — Kiểm tra bản quyền / Block YouTube cho Phim trong Thư viện gốc (D:\Lib) trước khi làm job. Bao gồm: - Tìm video nguồn (merged hoặc tập đầu).
 
@@ -11,6 +11,7 @@
 
 - **Gọi tới (import nội bộ):** [check_block](./check_block.md), [film_db](./film_db.md), [title_mt](./title_mt.md)
 - **Được dùng bởi:** [agent_tele_cmd](./agent_tele_cmd.md), [routes_films](./routes_films.md), [routes_uploader_settings](./routes_uploader_settings.md), [test_channel](./test_channel.md), [uploader_settings_api](./uploader_settings_api.md)
+- **Được nhắc tên file `.py` (subprocess/script) bởi:** [machine](./machine.md)
 - **Test:** ❌ chưa có test import trực tiếp
 - **Thư viện ngoài:** `yt_accounts`
 
@@ -51,7 +52,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
 - **Reviews:** [2026-11-02-v4-structure-sync](../../reviews/2026-11-02-v4-structure-sync.md), [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md), [2026-11-02-v4-duplication-audit](../../reviews/2026-11-02-v4-duplication-audit.md)
 - Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần
 

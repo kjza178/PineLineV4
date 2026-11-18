@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `pronoun_register_policy.py` · **Lớp:** `translate` · **243 dòng** (208 code) · **8 hàm**, **1 class** · sha1 `1c044b773e`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `pronoun_register_policy.py` · **Lớp:** `translate` · **307 dòng** (255 code) · **10 hàm**, **1 class** · sha1 `17e8ad74c2`
 
 > Policy xưng hô tổng quát cho mix #1+#3 — không gắn 1 job/phim. Mục tiêu: - Phát hiện cửa sổ CÓ DANH XƯNG BẬC (title hierarchy) + ngôi 2 thân mật «cậu»
 
@@ -11,7 +11,7 @@
 
 - **Gọi tới (import nội bộ):** —
 - **Được dùng bởi:** [agent_pronoun_pass](./agent_pronoun_pass.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Test:** `tests/test_translate_b1.py`, `tests/test_translate_b1_scenarios.py`
 
 ```mermaid
 flowchart LR
@@ -23,15 +23,17 @@ flowchart LR
 
 | Tên | Dòng | Dài | Tham số | Docstring |
 |---|---:|---:|---|---|
-| **class `RegisterPlan`** | 45 | 1 method | | Kế hoạch ngôi cho 1 job (suy từ style_lock, không từ job id). |
-| `detect_mode` | 68 | 31 | `plan` |  |
-| `build_register_plan` | 101 | 7 | `plan` |  |
-| `window_has_title` | 110 | 3 | `texts` |  |
-| `cue_has_intimate_2nd` | 115 | 2 | `vi` |  |
-| `scan_title_intimate_issues` | 119 | 37 | `rows, window, existing_ids` | Thêm issue khi cue có «cậu» và cửa sổ ±window có title bậc. |
-| `mechanical_cau_to_formal` | 158 | 17 | `vi, preferred` | Fallback máy: cậu → preferred; Các cậu → Các preferred / Các vị. |
-| `normalize_ong_nguoi_in_title_window` | 177 | 35 | `rows, changed_ids, preferred, window` | Sau LLM: nếu cue vừa sửa còn ông+ngươi loạn quanh title → ép preferred. |
-| `enforce_remaining_cau` | 214 | 30 | `rows, preferred, window` | Sau cùng: còn cậu trong title window → máy đổi (không chờ LLM). |
+| **class `RegisterPlan`** | 89 | 1 method | | Kế hoạch ngôi cho 1 job (suy từ style_lock, không từ job id). |
+| `_is_standalone_2nd_cau` | 60 | 12 | `text, m` | «cậu» tại m có phải đại từ ngôi 2 đứng độc lập không (xem danh sách ngoại lệ trên). |
+| `standalone_2nd_cau_spans` | 74 | 4 | `text` | Vị trí các «cậu» là đại từ ngôi 2 độc lập (để thay máy an toàn). |
+| `detect_mode` | 112 | 31 | `plan` |  |
+| `build_register_plan` | 145 | 7 | `plan` |  |
+| `window_has_title` | 154 | 3 | `texts` |  |
+| `cue_has_intimate_2nd` | 159 | 3 | `vi` |  |
+| `scan_title_intimate_issues` | 164 | 39 | `rows, window, existing_ids` | Thêm issue khi cue có «cậu» và cửa sổ ±window có title bậc. |
+| `mechanical_cau_to_formal` | 205 | 30 | `vi, preferred` | Fallback máy: cậu → preferred; Các cậu → Các preferred / Các vị. |
+| `normalize_ong_nguoi_in_title_window` | 237 | 37 | `rows, changed_ids, preferred, window` | Sau LLM: nếu cue vừa sửa còn ông+ngươi loạn quanh title → ép preferred. |
+| `enforce_remaining_cau` | 276 | 32 | `rows, preferred, window` | Sau cùng: còn cậu trong title window → máy đổi (không chờ LLM). |
 
 ### Lịch sử (từ docs/)
 

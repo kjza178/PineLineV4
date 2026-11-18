@@ -9,10 +9,6 @@ Hỗ trợ 4 nhóm chức năng:
 
 from __future__ import annotations
 
-try:  # machine-config 11-11: key phụ thuộc máy (cổng/thư mục) — V5/V6 core/, V4 phẳng
-    from core import machine as _machine
-except ImportError:  # pragma: no cover
-    import machine as _machine  # type: ignore
 import json
 import os
 import re
@@ -413,7 +409,7 @@ def page_covers(page: int = 1, per_page: int = 10) -> list[tuple[str, str]]:
 
 
 WATCH_BASE = f"http://127.0.0.1:{os.getenv('AUTOPILOT_PORT') or '8802'}"
-PINELINE_BASE = f"http://127.0.0.1:{os.getenv('PORT') or '8804'}"
+PINELINE_BASE = f"http://127.0.0.1:{os.getenv('PORT') or '8801'}"
 
 # Mã lỗi gốc của Hongguo /dl/preview
 _PV_ERRORS = {
@@ -659,7 +655,7 @@ def tool_hg_library(query: str = "") -> str:
             })
         return json.dumps({
             "ok": True,
-            "output_dir": lib.get("output_dir", str(_machine.library_dir())),
+            "output_dir": lib.get("output_dir", r"D:\Lib"),
             "total_series": len(items),
             "series": summary,
         }, ensure_ascii=False, indent=2)
@@ -674,9 +670,9 @@ def tool_hg_merge(folder_name: str) -> str:
         return json.dumps({"error": "thiếu folder_name của bộ phim trong thư viện"}, ensure_ascii=False)
 
     try:
-        # Hàng đợi merge sống trong server :8804 (UI thấy được); chỉ chạy cục bộ khi server không phản hồi.
+        # Hàng đợi merge sống trong server :8801 (UI thấy được); chỉ chạy cục bộ khi server không phản hồi.
         import requests
-        port = os.environ.get("PORT", "8804")
+        port = os.environ.get("PORT", "8801")
         try:
             res = requests.post(f"http://127.0.0.1:{port}/api/hg/merge",
                                 json={"names": [fn], "force": True}, timeout=30).json()
@@ -701,7 +697,7 @@ def tool_hg_clean(folder_name: str) -> str:
 
     try:
         lib = hg.library()
-        root = Path(lib.get("output_dir") or str(_machine.library_dir()))
+        root = Path(lib.get("output_dir") or r"D:\Lib")
         target_dir = root / fn
         if not target_dir.is_dir():
             it, ambiguous = _pick_lib_item(lib.get("items") or [], fn)
@@ -754,7 +750,7 @@ def _get_existing_pineline_titles(rt: Any = None) -> set[str]:
         if rt and hasattr(rt, "list_jobs"):
             jobs = rt.list_jobs() or []
         else:
-            server_port = os.environ.get("PORT", "8804")
+            server_port = os.environ.get("PORT", "8801")
             import requests
             r = requests.get(f"http://127.0.0.1:{server_port}/api/jobs", timeout=5)
             jobs = r.json() if r.status_code == 200 else []
@@ -904,7 +900,7 @@ def tool_hg_auto_flow(
     2. Tự tải nếu chưa có (chờ tải hoàn tất 100%)
     3. Gộp video chuẩn 1080p (chờ gộp xong file (merged).mp4)
     4. Tự động XÓA TẬP MẢNH LẺ để giải phóng ổ đĩa
-    5. Thêm Job vào Pineline V4
+    5. Thêm Job vào Pineline V2
     6. Xếp vào hàng chờ chạy tự động đến video xuất xưởng (ASR -> Dịch -> TTS -> Render).
     """
     target = (query_or_id or "").strip()
@@ -944,7 +940,7 @@ def tool_hg_auto_flow(
     ensure_hongguo_running()
 
     lib = hg.library()
-    root = Path(lib.get("output_dir") or str(_machine.library_dir()))
+    root = Path(lib.get("output_dir") or r"D:\Lib")
     items = lib.get("items") or []
     existing_titles = _get_existing_pineline_titles(rt)
 
@@ -1112,7 +1108,7 @@ def tool_hg_auto_flow(
     # 3. Gộp video chuẩn 1080p nếu chưa có (merged).mp4 -> Chờ gộp hoàn tất
     info = hg.inspect_series_folder(folder_path)
     merged_file = info.get("merged_file")
-    server_port = os.environ.get("PORT", "8804")
+    server_port = os.environ.get("PORT", "8801")
     import requests
 
     if not merged_file or not (folder_path / merged_file).exists():
@@ -1164,7 +1160,7 @@ def tool_hg_auto_flow(
     elif notify_cb and not clean_res.get("ok"):
         notify_cb(f"⚠️ Giữ nguyên tập lẻ của '{folder_name}': {clean_res.get('error')}")
 
-    # 5. Kiểm tra và Tạo Job mới trong Pineline V4
+    # 5. Kiểm tra và Tạo Job mới trong Pineline V2
     job_id = None
     if folder_name.lower() in existing_titles:
         try:

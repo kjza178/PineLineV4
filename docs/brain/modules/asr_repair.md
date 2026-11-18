@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `asr_repair.py` · **Lớp:** `asr` · **546 dòng** (473 code) · **16 hàm**, **0 class** · sha1 `bb1beada31`
 
 > asr_repair.py — Hậu kỳ Hybrid: A lấp lỗ + B sửa nghe sai + FA. A) Gap: Para có thoại, bản hiện tại trống/ít phủ → Nano ASR lại → chèn câu B) CER: chữ Nano lệch Para mạnh quanh mốc → Nano ASR lại cửa sổ → thay chữ
@@ -56,7 +56,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [asr-demucs-default: ASR mặc định chạy trên giọng tách Demucs + separate.py chia khúc tại khoảng lặng, cắt/ghép](../../fixes/2026-11-12-asr-demucs-default.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->

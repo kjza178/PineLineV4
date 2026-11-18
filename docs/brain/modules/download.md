@@ -2,16 +2,16 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `download.py` · **Lớp:** `source` · **692 dòng** (565 code) · **20 hàm**, **0 class** · sha1 `3f8b5292a5`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `download.py` · **Lớp:** `source` · **706 dòng** (577 code) · **20 hàm**, **0 class** · sha1 `a517b7cc73`
 
 > download.py — STAGE 1: Tải video (Douyin / Bilibili / TikTok / ...). Engine: yt-dlp. Tự resume — đã tải xong thì bỏ qua. Đã gộp kỹ thuật production từ Galaxy Video Downloader (Jonathan Nguyen):
 
 ### Phụ thuộc
 
-- **Gọi tới (import nội bộ):** [config](./config.md), [manifest](./manifest.md)
+- **Gọi tới (import nội bộ):** [config](./config.md), [manifest](./manifest.md), [source_preflight](./source_preflight.md)
 - **Được dùng bởi:** [check_cookies](./check_cookies.md), [playlist](./playlist.md), [server](./server.md)
-- **Được nhắc tên file `.py` (subprocess/script) bởi:** [check_cookies](./check_cookies.md), [playlist](./playlist.md)
+- **Được nhắc tên file `.py` (subprocess/script) bởi:** [check_cookies](./check_cookies.md), [playlist](./playlist.md), [source_preflight](./source_preflight.md)
 - **Test:** ❌ chưa có test import trực tiếp
 - **Thư viện ngoài:** `psutil`, `yt_dlp`
 
@@ -23,6 +23,7 @@ flowchart LR
   server[server] --> download
   download --> config[config]
   download --> manifest[manifest]
+  download --> source_preflight[source_preflight]
 ```
 
 ### Hàm & class top-level
@@ -47,10 +48,10 @@ flowchart LR
 | `find_cookie_file` | 257 | 12 | `platform, cookies_dir` | Tìm file cookie theo nền tảng trong cookies_dir (vd bilibili_cookies.txt). |
 | `get_aria2c_path` | 271 | 8 | `` | Tìm aria2c -> trả ĐƯỜNG DẪN TUYỆT ĐỐI (yt-dlp tìm external_downloader trong |
 | `apply_speed_opts` | 281 | 22 | `opts, conn` | Tải mảnh song song + aria2c nếu có (args tune từ code Galaxy). |
-| `download_video` | 305 | 352 ⚠️ | `url, work_dir, cookies, cookies_dir, cookies_from_browser, proxy, f…` | Tải 1 video về work_dir. Trả về dict trạng thái stage (video_path + metadata). |
-| `main` | 659 | 30 | `argv` |  |
+| `download_video` | 305 | 366 ⚠️ | `url, work_dir, cookies, cookies_dir, cookies_from_browser, proxy, f…` | Tải 1 video về work_dir. Trả về dict trạng thái stage (video_path + metadata). |
+| `main` | 673 | 30 | `argv` |  |
 
-**Hàm dài ≥120 dòng:** `download_video` (352, L305)
+**Hàm dài ≥120 dòng:** `download_video` (366, L305)
 
 ### Config / env keys (2)
 
@@ -58,14 +59,16 @@ flowchart LR
 
 **File/artifact nhắc tới:** `meta.json`, `source.info.json`, `source.mp4`
 
-**Tín hiệu rủi ro (đếm tĩnh):** broad_except=10 · file_writes=1 · threads=1
+**Tín hiệu rủi ro (đếm tĩnh):** broad_except=11 · file_writes=1 · threads=1
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (2):**
+- **Fix logs (4):**
+  - [Port V2 → V4: preflight/chuẩn hoá video nguồn + extract_pcm bền + FireRed cắt ở khoảng lặng + câu ASR rác / pa](../../fixes/2026-11-13-port-preflight-slice-junk.md)
+  - [Preflight + chuẩn hoá video nguồn trước khi vào job (+ 2 lỗi review extract_pcm)](../../fixes/2026-11-12-video-preflight.md)
   - [Phim đã xoá thư mục vẫn tồn đọng trong films/ui và thiếu chức năng xoá phim](../../fixes/2026-10-09-films-ui-delete-missing.md)
   - [Video nguồn bị chép thành 2 bản (thư viện + job)](../../fixes/2026-10-07-source-duplicate-copy.md)
-- Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần
+- Nhắc trong CHANGELOG: **2** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->
 

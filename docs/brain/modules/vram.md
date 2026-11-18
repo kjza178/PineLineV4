@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `vram.py` · **Lớp:** `ops` · **89 dòng** (76 code) · **4 hàm**, **0 class** · sha1 `0c23090f49`
 
 > vram.py — Nhả VRAM trước MỖI bước dùng GPU. Ollama (Gemma ctx 128k), FunASR, Demucs, TTS, NVENC tranh nhau 12GB. Model Ollama sống dai sau bước dịch; torch cache sống dai trong cùng process.
@@ -51,7 +51,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [asr-demucs-default: ASR mặc định chạy trên giọng tách Demucs + separate.py chia khúc tại khoảng lặng, cắt/ghép](../../fixes/2026-11-12-asr-demucs-default.md)
 - **Reviews:** [2026-10-06-code-review](../../reviews/2026-10-06-code-review.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 

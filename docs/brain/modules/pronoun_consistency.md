@@ -2,21 +2,22 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `pronoun_consistency.py` · **Lớp:** `translate` · **870 dòng** (764 code) · **30 hàm**, **0 class** · sha1 `4ebfca4fc5`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `pronoun_consistency.py` · **Lớp:** `translate` · **872 dòng** (766 code) · **30 hàm**, **0 class** · sha1 `1922b1263b`
 
 > Đồng nhất xưng hô không cần diarization (A–C + vá câu đỏ). A) analyze_full_zh: quét TOÀN BỘ ZH theo lô + memory → glossary.pronouns + lock B) inject lock/ledger vào mỗi lô dịch
 
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [agent_pronoun_pass](./agent_pronoun_pass.md), [config](./config.md), [llm](./llm.md), [manifest](./manifest.md), [translate](./translate.md)
-- **Được dùng bởi:** [translate](./translate.md)
-- **Test:** `tests/test_pronoun_consistency.py`
+- **Được dùng bởi:** [translate](./translate.md), [translate_simple.stage_draft](./translate_simple.stage_draft.md)
+- **Test:** `tests/test_pronoun_consistency.py`, `tests/test_translate_b1.py`, `tests/test_translate_b1_scenarios.py`, `tests/test_translate_b2.py`, `tests/test_translate_b2_review.py`
 
 ```mermaid
 flowchart LR
   pronoun_consistency[[pronoun_consistency]]
   translate[translate] --> pronoun_consistency
+  translate_simple_stage_draft[translate_simple.stage_draft] --> pronoun_consistency
   pronoun_consistency --> agent_pronoun_pass[agent_pronoun_pass]
   pronoun_consistency --> config[config]
   pronoun_consistency --> llm[llm]
@@ -57,7 +58,7 @@ flowchart LR
 | `_forms_in` | 731 | 10 | `vi` |  |
 | `find_pronoun_jumps` | 743 | 41 | `rows, window` | C) QA: trong cửa sổ gần nhau, vừa có {anh,em} vừa có {ông} ngôi hô / tôi lệch kiểu. |
 | `ensure_analyze_before_translate` | 786 | 21 | `work_dir, plan, segments, force` | Gọi từ translate.run_translate sau khi có plan. |
-| `run_post_translate_consistency` | 809 | 62 | `work_dir, rows, plan, fix_with_gpt` | C+D sau dịch/polish: post-pass + QA jumps + GPT vá đỏ. |
+| `run_post_translate_consistency` | 809 | 64 | `work_dir, rows, plan, fix_with_gpt` | C+D sau dịch/polish: post-pass + QA jumps + GPT vá đỏ. |
 
 **Hàm dài ≥120 dòng:** `analyze_full_zh` (165, L447)
 

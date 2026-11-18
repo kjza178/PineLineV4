@@ -1,5 +1,5 @@
 """
-Auto-pilot — queue need_queue + heal safe qua HTTP Pineline (PORT / PINELINE_BASE).
+Auto-pilot — queue need_queue + heal safe qua HTTP Pineline (:8801).
 Chạy trong sidecar (agent_tele_cmd) — không cần restart server.
 """
 from __future__ import annotations
@@ -18,8 +18,7 @@ from fileio import atomic_write_text, file_lock
 
 ROOT = Path(__file__).resolve().parent
 STATE_PATH = ROOT / "work" / "logs" / "autopilot_state.json"
-_port = (os.getenv("PORT") or "8804").strip()
-DEFAULT_BASE = (os.getenv("PINELINE_BASE") or f"http://127.0.0.1:{_port}").strip().rstrip("/")
+DEFAULT_BASE = (os.getenv("PINELINE_BASE") or "http://127.0.0.1:8801").rstrip("/")
 
 
 def _now() -> str:

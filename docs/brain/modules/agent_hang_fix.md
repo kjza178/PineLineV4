@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `agent_hang_fix.py` · **Lớp:** `agent` · **368 dòng** (326 code) · **9 hàm**, **0 class** · sha1 `8281d71aae`
 
 > Second Brain — pass LLM trace + xử lý high `hang` (đuôi treo / nửa câu). Không chỉ merge mù: mỗi flag được chẩn đoán (root), chọn phương án, rồi áp VI. Ghi `qa_hang_trace.json` để audit. Chỉ mở HOLD khi re-scan hết high 
@@ -10,14 +10,15 @@
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [agent_quality](./agent_quality.md), [config](./config.md), [llm](./llm.md), [manifest](./manifest.md), [subs](./subs.md), [translate](./translate.md)
-- **Được dùng bởi:** [agent_brain](./agent_brain.md), [agent_brain_context](./agent_brain_context.md), [agent_quality](./agent_quality.md), [translate](./translate.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Được dùng bởi:** [agent_brain](./agent_brain.md), [agent_brain_context](./agent_brain_context.md), [agent_qa_fix](./agent_qa_fix.md), [agent_quality](./agent_quality.md), [translate](./translate.md)
+- **Test:** `tests/test_translate_b1.py`, `tests/test_translate_b1_scenarios.py`, `tests/test_translate_b2.py`, `tests/test_translate_b2_review.py`
 
 ```mermaid
 flowchart LR
   agent_hang_fix[[agent_hang_fix]]
   agent_brain[agent_brain] --> agent_hang_fix
   agent_brain_context[agent_brain_context] --> agent_hang_fix
+  agent_qa_fix[agent_qa_fix] --> agent_hang_fix
   agent_quality[agent_quality] --> agent_hang_fix
   translate[translate] --> agent_hang_fix
   agent_hang_fix --> agent_quality[agent_quality]

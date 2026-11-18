@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `series_glossary.py` · **Lớp:** `translate` · **199 dòng** (167 code) · **11 hàm**, **0 class** · sha1 `ca16cc6f13`
 
 > Bảng nhân vật / thuật ngữ / xưng hô dùng chung cho CẢ BỘ (mọi mùa). - apply(work_dir, plan): khi dịch 1 mùa → đè các mục đã chốt của bộ lên plan (tên, tên phụ, xưng hô, thuật ngữ); nhân vật mới chỉ có ở mùa này giữ nguyê
@@ -10,14 +10,17 @@
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [film_db](./film_db.md), [hongguo_bridge](./hongguo_bridge.md), [hv_auditor](./hv_auditor.md)
-- **Được dùng bởi:** [server](./server.md), [translate](./translate.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Được dùng bởi:** [server](./server.md), [translate](./translate.md), [translate_simple.pipeline](./translate_simple.pipeline.md), [translate_simple.stage_draft](./translate_simple.stage_draft.md), [translate_simple.zh_source](./translate_simple.zh_source.md)
+- **Test:** `tests/test_translate_b1.py`, `tests/test_translate_b1_scenarios.py`, `tests/test_translate_b2.py`, `tests/test_translate_simple.py`, `tests/test_translate_simple_next.py`, `tests/test_translate_simple_next_review.py`, `tests/test_translate_simple_scenarios.py`
 
 ```mermaid
 flowchart LR
   series_glossary[[series_glossary]]
   server[server] --> series_glossary
   translate[translate] --> series_glossary
+  translate_simple_pipeline[translate_simple.pipeline] --> series_glossary
+  translate_simple_stage_draft[translate_simple.stage_draft] --> series_glossary
+  translate_simple_zh_source[translate_simple.zh_source] --> series_glossary
   series_glossary --> film_db[film_db]
   series_glossary --> hongguo_bridge[hongguo_bridge]
   series_glossary --> hv_auditor[hv_auditor]
@@ -45,12 +48,14 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (4):**
+- **Fix logs (6):**
+  - [translate-simple «next»: lexicon src · bảng quy tắc xưng hô · bổ sung cặp thiếu · học lại · nguồn ZH · gỡ lặp ](../../fixes/2026-11-12-translate-simple-next.md)
+  - [Port V2 → V4: luồng dịch `translate_simple` (MẶC ĐỊNH) + Demucs trước ASR](../../fixes/2026-11-12-port-simple-demucs.md)
   - [NMT draft + glossary gầy + REVIEW GPT mini](../../fixes/2026-11-09-mt-draft-slim-gloss.md)
   - [HV Auditor: glossary khóa sai âm Hán Việt (逆→Nghị)](../../fixes/2026-11-09-hv-auditor.md)
   - [逆天而行 dịch sai «Nghị Thiên Nhi Hành» (đúng: Nghịch…)](../../fixes/2026-11-08-nghich-thien-ni-hanh.md)
   - [Lệch xưng hô sau dịch (Ta–Ngươi / sai self–call)](../../fixes/2026-11-02-pronoun-xung-ho.md)
-- **Reviews:** [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md)
+- **Reviews:** [2026-11-12-translate-simple-review](../../reviews/2026-11-12-translate-simple-review.md), [2026-11-12-translate-simple-next-review](../../reviews/2026-11-12-translate-simple-next-review.md), [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md)
 - Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->

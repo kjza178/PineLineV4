@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `clone_tts.py` · **Lớp:** `tts` · **1115 dòng** (968 code) · **38 hàm**, **0 class** · sha1 `658fb033e3`
 
 > clone_tts.py — STAGE Lồng tiếng bằng TTS zero-shot clone tiếng Việt. Hai engine, cùng registry giọng (voices/f5_voices.json: name -> {ref, text}): - "vieneu"    : VieNeu-TTS v3-Turbo (G2P tiếng Việt riêng, chạy CPU/ONNX)
@@ -12,7 +12,7 @@
 - **Gọi tới (import nội bộ):** [assemble](./assemble.md), [config](./config.md), [manifest](./manifest.md), [vram](./vram.md)
 - **Được dùng bởi:** [agent_hongguo](./agent_hongguo.md), [scripts.check_batch4](./scripts.check_batch4.md), [server](./server.md)
 - **Được nhắc tên file `.py` (subprocess/script) bởi:** [restart_server](./restart_server.md), [scripts.check_batch4](./scripts.check_batch4.md), [server](./server.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Test:** `tests/test_simple_junk_park.py`
 - **Thư viện ngoài:** `faster_whisper`, `numpy`, `soundfile`
 
 ```mermaid

@@ -55,6 +55,7 @@ Restart chỉ khi hàng đợi rảnh, hoặc user đồng ý (yes/no).
 Đợt 7 (`fixes/2026-10-06-batch7-ui-split.md`): `server.py` tách `routes_ui.py`/`routes_hg.py`/`routes_agent.py` — đã có hiệu lực.
 
 ## Việc còn treo / cần user quyết
+- **Chờ restart server + sidecar** — port V2 18/11 (DeepSeek flash/thinking tắt, HOLD QA Telegram, chuẩn hóa nhiều mùa).
 
 - **11-11 ~03:05 — Chờ restart nạp fix B1–B10:** :8801 (V2), :8804 (V4), :8805 (V5 — lần đầu sau khi chuyển package). Chạy pytest trước (xem `docs/fixes/2026-11-11-*`). V2 đang chạy production → restart khi queue rảnh / user đồng ý.
 - **Restart :8801 nạp queue-park + Studio SOP / Aurora∥ REVIEW** — process cũ chưa có. Restart cắt `365baf` nếu đang dịch → hỏi yes/no. Sau: xếp `60892_p01` đầu hàng TTS; không CLI review song song queue.

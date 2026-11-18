@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `films_merge_api.py` · **Lớp:** `publish` · **174 dòng** (146 code) · **10 hàm**, **0 class** · sha1 `6dd023f1a4`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `films_merge_api.py` · **Lớp:** `publish` · **174 dòng** (146 code) · **10 hàm**, **0 class** · sha1 `9383900e88`
 
 > Gộp parts (split jobs) + scan job đã làm sẵn sàng merge — dùng từ sidecar :8802.
 

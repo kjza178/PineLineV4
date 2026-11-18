@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `asr_hybrid_progress.py` · **Lớp:** `asr` · **144 dòng** (124 code) · **5 hàm**, **0 class** · sha1 `b6610f0914`
 
 > asr_hybrid_progress.py — Đưa tiến độ sidecar (Nano/Para) vào stages.asr cho UI Hybrid. UI đọc manifest stages.asr; sidecar chỉ ghi asr.*.progress.json → UI kẹt 5%. Hàm này map % sidecar vào khoảng Hybrid và ghi/đè vào st

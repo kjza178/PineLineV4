@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `nano_fa_asr.py` · **Lớp:** `asr` · **337 dòng** (271 code) · **5 hàm**, **0 class** · sha1 `527d5c9718`
 
 > nano_fa_asr.py — SOTA ASR: Fun-ASR-Nano (Chữ chuẩn nhất) + Direct Qwen3-ForcedAligner (Mốc chuẩn từng chữ). Kiến trúc sạch, chuẩn công nghiệp: 1) Fun-ASR-Nano nhận diện văn bản (hiểu ngữ cảnh, ít sai chữ, chống lặp qua V
@@ -47,7 +47,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [asr-demucs-default: ASR mặc định chạy trên giọng tách Demucs + separate.py chia khúc tại khoảng lặng, cắt/ghép](../../fixes/2026-11-12-asr-demucs-default.md)
 - **Reviews:** [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md)
 - Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần
 

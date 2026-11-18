@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `routes_films.py` · **Lớp:** `control` · **370 dòng** (291 code) · **31 hàm**, **0 class** · sha1 `816e9a6c6c`
 
 > FastAPI Router cho Thư viện Phim & Database (đồng bộ trực tiếp trong Pineline V4). Thay vì phải chạy sidecar :8802 riêng mới dùng được films_ui.html, router này gắn trực tiếp vào server.py (port 8804).
@@ -103,10 +103,11 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (1):**
+- **Fix logs (2):**
+  - [REVIEW lỗi bị coi là đã soát · park treo hàng đợi · Brain V4 điều khiển nhầm V2](../../fixes/2026-11-11-review-fail-park-port.md)
   - [`/library/action` crash — gọi API film_db không tồn tại](../../fixes/2026-11-02-library-action-missing-api.md)
-- **Reviews:** [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md)
-- Nhắc trong CHANGELOG: **2** lần · DECISIONS: **0** lần
+- **Reviews:** [2026-11-11-v4-v5-port-review](../../reviews/2026-11-11-v4-v5-port-review.md), [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md)
+- Nhắc trong CHANGELOG: **3** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->
 

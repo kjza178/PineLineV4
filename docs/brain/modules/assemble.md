@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `assemble.py` · **Lớp:** `render` · **417 dòng** (350 code) · **16 hàm**, **0 class** · sha1 `fc2163acde`
 
 > assemble.py — Ghép clip TTS thành MỘT track + kiểm khớp SRT. Hai chế độ: - assemble()      : NAIVE, đặt clip đúng mốc SRT (có thể ĐÈ). Chủ yếu để ĐO độ

@@ -2,26 +2,29 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `manifest.py` · **Lớp:** `control` · **242 dòng** (190 code) · **4 hàm**, **1 class** · sha1 `12aa6e37d2`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `manifest.py` · **Lớp:** `control` · **262 dòng** (208 code) · **4 hàm**, **1 class** · sha1 `42e6bf9de0`
 
 > manifest.py — Trạng thái/checkpoint cho pipeline. Mỗi job (mỗi video) có một thư mục làm việc riêng chứa manifest.json. Mỗi stage ghi trạng thái vào đây; crash/mất điện thì resume từ stage cuối
 
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [fileio](./fileio.md)
-- **Được dùng bởi:** [agent_brain](./agent_brain.md), [agent_hang_fix](./agent_hang_fix.md), [agent_name_pass](./agent_name_pass.md), [agent_pronoun_pass](./agent_pronoun_pass.md), [agent_qa_gate](./agent_qa_gate.md), [asr](./asr.md), [asr_hybrid_progress](./asr_hybrid_progress.md), [auto_publisher](./auto_publisher.md), [clone_tts](./clone_tts.md), [download](./download.md), [firered_asr](./firered_asr.md), [fun_asr_nano](./fun_asr_nano.md), [hardsub_asr](./hardsub_asr.md), [hybrid_asr](./hybrid_asr.md), [mux](./mux.md), [nano_fa_asr](./nano_fa_asr.md), [ocr](./ocr.md), [paraformer_zh](./paraformer_zh.md), [pronoun_consistency](./pronoun_consistency.md), [render](./render.md), [routes_agent](./routes_agent.md), [scripts.check_batch4](./scripts.check_batch4.md), [sensevoice_asr](./sensevoice_asr.md), [separate](./separate.md), [server](./server.md), [split_parts](./split_parts.md), [translate](./translate.md), [translate_alts](./translate_alts.md)
+- **Được dùng bởi:** [agent_brain](./agent_brain.md), [agent_hang_fix](./agent_hang_fix.md), [agent_hold](./agent_hold.md), [agent_name_pass](./agent_name_pass.md), [agent_pronoun_pass](./agent_pronoun_pass.md), [agent_qa_ask](./agent_qa_ask.md), [agent_qa_gate](./agent_qa_gate.md), [agent_retry](./agent_retry.md), [asr](./asr.md), [asr_hybrid_progress](./asr_hybrid_progress.md), [auto_publisher](./auto_publisher.md), [clone_tts](./clone_tts.md), [download](./download.md), [firered_asr](./firered_asr.md), [fun_asr_nano](./fun_asr_nano.md), [hardsub_asr](./hardsub_asr.md), [hybrid_asr](./hybrid_asr.md), [mux](./mux.md), [nano_fa_asr](./nano_fa_asr.md), [ocr](./ocr.md), [paraformer_zh](./paraformer_zh.md), [pronoun_consistency](./pronoun_consistency.md), [render](./render.md), [routes_agent](./routes_agent.md), [scripts.check_batch4](./scripts.check_batch4.md), [sensevoice_asr](./sensevoice_asr.md), [separate](./separate.md), [server](./server.md), [source_preflight](./source_preflight.md), [split_parts](./split_parts.md), [translate](./translate.md), [translate_alts](./translate_alts.md), [translate_simple.cfg](./translate_simple.cfg.md), [translate_simple.pipeline](./translate_simple.pipeline.md)
 - **Được nhắc tên file `.py` (subprocess/script) bởi:** [restart_server](./restart_server.md)
-- **Test:** `tests/test_agent_core_smoke.py`, `tests/test_asr_demucs.py`
+- **Test:** `tests/test_agent_brain_notify.py`, `tests/test_agent_core_smoke.py`, `tests/test_agent_hold_telegram.py`, `tests/test_asr_demucs.py`, `tests/test_separate_demucs_chunks.py`, `tests/test_video_preflight.py`
 
 ```mermaid
 flowchart LR
   manifest[[manifest]]
   agent_brain[agent_brain] --> manifest
   agent_hang_fix[agent_hang_fix] --> manifest
+  agent_hold[agent_hold] --> manifest
   agent_name_pass[agent_name_pass] --> manifest
   agent_pronoun_pass[agent_pronoun_pass] --> manifest
+  agent_qa_ask[agent_qa_ask] --> manifest
   agent_qa_gate[agent_qa_gate] --> manifest
+  agent_retry[agent_retry] --> manifest
   asr[asr] --> manifest
   asr_hybrid_progress[asr_hybrid_progress] --> manifest
   auto_publisher[auto_publisher] --> manifest
@@ -29,9 +32,6 @@ flowchart LR
   download[download] --> manifest
   firered_asr[firered_asr] --> manifest
   fun_asr_nano[fun_asr_nano] --> manifest
-  hardsub_asr[hardsub_asr] --> manifest
-  hybrid_asr[hybrid_asr] --> manifest
-  mux[mux] --> manifest
   manifest --> fileio[fileio]
 ```
 
@@ -39,7 +39,7 @@ flowchart LR
 
 | Tên | Dòng | Dài | Tham số | Docstring |
 |---|---:|---:|---|---|
-| **class `Manifest`** | 96 | 11 method | |  |
+| **class `Manifest`** | 96 | 12 method | |  |
 | `_now` | 26 | 2 | `` |  |
 | `_lock_for` | 39 | 8 | `path` |  |
 | `_merge3` | 52 | 22 | `base, mine, theirs` | Gộp 3 chiều dict JSON. Key mình không đổi so với lúc load → lấy bản đĩa (người khác |
@@ -51,7 +51,10 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (2):**
+- **Fix logs (5):**
+  - [simple-junk-park: câu ASR rác «None.» làm dịch simple park mãi → part 1/2 kẹt, phim không ghép](../../fixes/2026-11-13-simple-junk-park.md)
+  - [translate-simple «next»: lexicon src · bảng quy tắc xưng hô · bổ sung cặp thiếu · học lại · nguồn ZH · gỡ lặp ](../../fixes/2026-11-12-translate-simple-next.md)
+  - [Port V2 → V4: luồng dịch `translate_simple` (MẶC ĐỊNH) + Demucs trước ASR](../../fixes/2026-11-12-port-simple-demucs.md)
   - [REVIEW CLI song song + heal làm UI mất/soát % tụt](../../fixes/2026-11-10-review-heal-parallel.md)
   - [2026-10-06 — Đợt 4 review: tranh chấp ghi, một bản tiến trình, checkpoint an toàn](../../fixes/2026-10-06-batch4-write-races.md)
 - **Reviews:** [2026-10-06-code-review](../../reviews/2026-10-06-code-review.md)

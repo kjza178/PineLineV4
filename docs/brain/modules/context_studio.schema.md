@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `context_studio/schema.py` · **Lớp:** `context` · **129 dòng** (113 code) · **3 hàm**, **0 class** · sha1 `e077d40fad`
 
 > Heuristic number / name flags — không sửa transcript.
@@ -10,7 +10,7 @@
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [context_studio.address_lexicon](./context_studio.address_lexicon.md)
-- **Được dùng bởi:** [context_studio.__main__](./context_studio.__main__.md), [context_studio.analyzer](./context_studio.analyzer.md), [context_studio.app_streamlit](./context_studio.app_streamlit.md), [server](./server.md), [translate](./translate.md)
+- **Được dùng bởi:** [context_studio.__main__](./context_studio.__main__.md), [context_studio.analyzer](./context_studio.analyzer.md), [context_studio.app_streamlit](./context_studio.app_streamlit.md), [server](./server.md), [translate](./translate.md), [translate_simple.stage_draft](./translate_simple.stage_draft.md)
 - **Test:** ❌ chưa có test import trực tiếp
 
 ```mermaid
@@ -21,6 +21,7 @@ flowchart LR
   context_studio_app_streamlit[context_studio.app_streamlit] --> context_studio_schema
   server[server] --> context_studio_schema
   translate[translate] --> context_studio_schema
+  translate_simple_stage_draft[translate_simple.stage_draft] --> context_studio_schema
   context_studio_schema --> context_studio_address_lexicon[context_studio.address_lexicon]
 ```
 
@@ -34,7 +35,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [Port V2 → V4: luồng dịch `translate_simple` (MẶC ĐỊNH) + Demucs trước ASR](../../fixes/2026-11-12-port-simple-demucs.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->

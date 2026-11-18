@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `hongguo_license_ensure.py` · **Lớp:** `source` · **285 dòng** (245 code) · **11 hàm**, **1 class** · sha1 `25806b34e5`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `hongguo_license_ensure.py` · **Lớp:** `source` · **285 dòng** (245 code) · **11 hàm**, **1 class** · sha1 `27729835f7`
 
 > Ensure Hongguo 2.x helper is license-proved (same process as hongguo_rpc). Uses DPAPI key at %%LOCALAPPDATA%%\Pineline\hg_typed_key.dpapi and the WinUI Hongguo.Licensing stack (HgLicActivate host). Challenge/prove go thr
 

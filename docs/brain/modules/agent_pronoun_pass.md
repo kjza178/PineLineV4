@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `agent_pronoun_pass.py` · **Lớp:** `agent` · **256 dòng** (231 code) · **4 hàm**, **0 class** · sha1 `a45e71ea8d`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `agent_pronoun_pass.py` · **Lớp:** `agent` · **258 dòng** (233 code) · **4 hàm**, **0 class** · sha1 `1eafe86ec5`
 
 > Rà XƯNG HÔ trong bản dịch theo glossary.pronouns + genre. 1. Quét deterministic (cùng apply_pronoun_postpass) rồi 2. Các câu còn nghi (Ta/Ngươi lệch genre, hoặc cặp who+to có mặt mà self/call lệch)
 
@@ -11,7 +11,7 @@
 
 - **Gọi tới (import nội bộ):** [config](./config.md), [llm](./llm.md), [manifest](./manifest.md), [pronoun_register_policy](./pronoun_register_policy.md), [subs](./subs.md), [translate](./translate.md)
 - **Được dùng bởi:** [pronoun_consistency](./pronoun_consistency.md), [server](./server.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Test:** `tests/test_translate_b1.py`, `tests/test_translate_simple.py`
 
 ```mermaid
 flowchart LR
@@ -33,9 +33,9 @@ flowchart LR
 | `_fold` | 22 | 3 | `s` |  |
 | `find_pronoun_issues` | 27 | 63 | `rows, plan` |  |
 | `_fix_batch` | 92 | 36 | `chunk, plan_block, model, system` |  |
-| `run_pronoun_pass` | 130 | 127 ⚠️ | `work_dir, model` |  |
+| `run_pronoun_pass` | 130 | 129 ⚠️ | `work_dir, model` |  |
 
-**Hàm dài ≥120 dòng:** `run_pronoun_pass` (127, L130)
+**Hàm dài ≥120 dòng:** `run_pronoun_pass` (129, L130)
 
 ### Config / env keys (1)
 

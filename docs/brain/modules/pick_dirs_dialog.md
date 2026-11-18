@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `pick_dirs_dialog.py` · **Lớp:** `ops` · **204 dòng** (169 code) · **4 hàm**, **0 class** · sha1 `ff9acbb374`
 
 > Hộp thoại chọn NHIỀU folder cùng lúc (Listbox multi-select). Chạy: python pick_dirs_dialog.py [initial_dir] Stdout: mỗi path 1 dòng (UTF-8). Rỗng = hủy.

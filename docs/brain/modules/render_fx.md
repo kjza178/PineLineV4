@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `render_fx.py` · **Lớp:** `render` · **564 dòng** (477 code) · **32 hàm**, **0 class** · sha1 `93d3eece71`
 
 > Helpers: uniqueness filters + library BGM paths (copyright-safe audio).

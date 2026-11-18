@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `translate_alts.py` · **Lớp:** `translate` · **377 dòng** (352 code) · **5 hàm**, **0 class** · sha1 `b9168da321`
 
 > Phương án dịch tối ưu — ngữ cảnh + văn phong (trọng tâm Pineline). Quét câu dễ lệch / đa nghĩa → 2–3 bản VI xếp hạng (pick = tối ưu đề xuất). Bám Context Studio pack (genre · style_lock · xưng hô · terms). Chunk + ngữ cả

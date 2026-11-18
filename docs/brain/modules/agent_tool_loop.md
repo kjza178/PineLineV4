@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `agent_tool_loop.py` · **Lớp:** `agent` · **475 dòng** (427 code) · **11 hàm**, **0 class** · sha1 `5b6c2cdbca`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `agent_tool_loop.py` · **Lớp:** `agent` · **476 dòng** (428 code) · **11 hàm**, **0 class** · sha1 `07b47970f8`
 
 > Tool loop — điều khiển pipeline theo bước, chờ kết quả thật. Khác `pineline_run_stage` (fire-and-forget): mỗi bước start → poll manifest tới done|failed|stopped, rồi mới bước sau. Agent không spam GET API từ ngoài;
 
@@ -11,7 +11,7 @@
 
 - **Gọi tới (import nội bộ):** —
 - **Được dùng bởi:** [agent_core](./agent_core.md)
-- **Test:** ❌ chưa có test import trực tiếp
+- **Test:** `tests/test_agent_tool_loop.py`
 
 ```mermaid
 flowchart LR
@@ -23,17 +23,21 @@ flowchart LR
 
 | Tên | Dòng | Dài | Tham số | Docstring |
 |---|---:|---:|---|---|
-| `stage_snapshot` | 29 | 21 | `work_root, job_id, stage` | Đọc 1 stage từ manifest (disk) — không HTTP. |
-| `_normalize_start` | 52 | 22 | `res` |  |
-| `_looks_like_stop` | 76 | 12 | `work_root, job_id, snap` | True chỉ khi có .stop hoặc cur_text báo dừng — không nhầm salvage pending. |
-| `wait_stage` | 90 | 103 | `work_root, job_id, stage, timeout_sec, poll_sec, stop_flag, pending…` | Poll disk tới terminal. Trả final snapshot + timeline ngắn. |
-| `run_stage_wait` | 195 | 68 | `run_stage_fn, work_root, job_id, stage, opts, timeout_sec, poll_sec…` | Start 1 stage (hoặc skip nếu đã done & !force) rồi chờ terminal. |
-| `pipeline_loop` | 265 | 61 | `run_stage_fn, work_root, job_id, stages, opts, timeout_sec, poll_se…` | Chạy tuần tự nhiều stage; mỗi stage chờ xong mới sang bước sau. |
-| `http_job` | 330 | 4 | `base, job_id` |  |
-| `http_run_stage` | 336 | 25 | `base, job_id, stage, opts` |  |
-| `http_stage_snapshot` | 363 | 13 | `base, job_id, stage` |  |
-| `http_run_stage_wait` | 378 | 61 | `base, job_id, stage, opts, timeout_sec, poll_sec` | Giống run_stage_wait nhưng qua HTTP + poll GET /api/jobs (cho smoke test). |
-| `main` | 441 | 31 | `` |  |
+| `stage_snapshot` | 30 | 21 | `work_root, job_id, stage` | Đọc 1 stage từ manifest (disk) — không HTTP. |
+| `_normalize_start` | 53 | 22 | `res` |  |
+| `_looks_like_stop` | 77 | 12 | `work_root, job_id, snap` | True chỉ khi có .stop hoặc cur_text báo dừng — không nhầm salvage pending. |
+| `wait_stage` | 91 | 103 | `work_root, job_id, stage, timeout_sec, poll_sec, stop_flag, pending…` | Poll disk tới terminal. Trả final snapshot + timeline ngắn. |
+| `run_stage_wait` | 196 | 68 | `run_stage_fn, work_root, job_id, stage, opts, timeout_sec, poll_sec…` | Start 1 stage (hoặc skip nếu đã done & !force) rồi chờ terminal. |
+| `pipeline_loop` | 266 | 61 | `run_stage_fn, work_root, job_id, stages, opts, timeout_sec, poll_se…` | Chạy tuần tự nhiều stage; mỗi stage chờ xong mới sang bước sau. |
+| `http_job` | 331 | 4 | `base, job_id` |  |
+| `http_run_stage` | 337 | 25 | `base, job_id, stage, opts` |  |
+| `http_stage_snapshot` | 364 | 13 | `base, job_id, stage` |  |
+| `http_run_stage_wait` | 379 | 61 | `base, job_id, stage, opts, timeout_sec, poll_sec` | Giống run_stage_wait nhưng qua HTTP + poll GET /api/jobs (cho smoke test). |
+| `main` | 442 | 31 | `` |  |
+
+### Config / env keys (1)
+
+`PINELINE_BASE`
 
 **Cổng nhắc tới:** 8801
 
@@ -43,9 +47,10 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
-- **Reviews:** [2026-11-07-tool-loop](../../reviews/2026-11-07-tool-loop.md)
-- Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần
+- **Fix logs (1):**
+  - [REVIEW lỗi bị coi là đã soát · park treo hàng đợi · Brain V4 điều khiển nhầm V2](../../fixes/2026-11-11-review-fail-park-port.md)
+- **Reviews:** [2026-11-11-v4-v5-port-review](../../reviews/2026-11-11-v4-v5-port-review.md), [2026-11-07-tool-loop](../../reviews/2026-11-07-tool-loop.md)
+- Nhắc trong CHANGELOG: **2** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->
 

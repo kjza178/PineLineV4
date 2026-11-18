@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `agent_hongguo.py` · **Lớp:** `agent` · **1570 dòng** (1381 code) · **36 hàm**, **0 class** · sha1 `24af55d95a`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `agent_hongguo.py` · **Lớp:** `agent` · **1570 dòng** (1381 code) · **36 hàm**, **0 class** · sha1 `b9691ee27c`
 
 > agent_hongguo.py — Tích hợp bộ tool Hongguo Downloader & Auto-chain cho Pineline AI Agent. Hỗ trợ 4 nhóm chức năng: 1. Cơ bản: hg_search, hg_download, hg_status, hg_library
 
@@ -81,7 +81,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (3):**
+- **Fix logs (4):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
   - [2026-10-06 — Đợt 5 review: agent an toàn hơn](../../fixes/2026-10-06-batch5-agent-safety.md)
   - [2026-10-06 — Đợt 2 review: bảo mật + config một nguồn + LLM sập không để trống câu](../../fixes/2026-10-06-batch2-security.md)
   - [Đợt 1 — chặn mất dữ liệu (review 6/10)](../../fixes/2026-10-06-batch1-data-loss.md)

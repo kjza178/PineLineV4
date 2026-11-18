@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `title_mt.py` · **Lớp:** `translate` · **172 dòng** (151 code) · **6 hàm**, **0 class** · sha1 `2d45addfb5`
 
 > Dịch thô tiêu đề Trung → Việt (Google gtx, không cần API key). Chỉ để duyệt Hongguo cho biết nội dung — không phải bản dịch kênh. Cache theo series_id + theo chuỗi title gốc.

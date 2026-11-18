@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `agent_qa_gate.py` · **Lớp:** `agent` · **226 dòng** (196 code) · **8 hàm**, **0 class** · sha1 `1b0edf4728`
 
 > Gate QA: translate → review → diff → mới cho TTS.
@@ -42,7 +42,9 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (2):**
+  - [simple-junk-park: câu ASR rác «None.» làm dịch simple park mãi → part 1/2 kẹt, phim không ghép](../../fixes/2026-11-13-simple-junk-park.md)
+  - [2026-11-13 — Brain: job đã xong bị heal «thất bại» + park tự động bị báo nhầm «HOLD / Cần bạn»](../../fixes/2026-11-13-brain-finished-hold.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->

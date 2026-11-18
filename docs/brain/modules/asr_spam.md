@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `asr_spam.py` · **Lớp:** `asr` · **464 dòng** (399 code) · **14 hàm**, **0 class** · sha1 `193ed3d7ce`
 
 > asr_spam.py — Chặn ASR nuốt tiếng nền (cười/rên 哈·啊·呃 lặp). Không dựa vào check tay: sau mỗi lần ghi ASR / promote / compare, tự detect + rút spam; nếu còn filler thuần thì mượn chữ từ sidecar khác

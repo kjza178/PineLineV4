@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `test_channel.py` · **Lớp:** `publish` · **1435 dòng** (1210 code) · **38 hàm**, **0 class** · sha1 `528ece0d58`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `test_channel.py` · **Lớp:** `publish` · **1444 dòng** (1217 code) · **38 hàm**, **0 class** · sha1 `e422c0da5a`
 
 > test_channel.py — Quản lý Kênh Phụ Test (Burner Channel) độc lập trong Pineline. Chức năng: - Đăng nhập Google OAuth Kênh Phụ / Gmail Test riêng (tách biệt hoàn toàn với kênh Sage Review).
 
@@ -51,22 +51,22 @@ flowchart LR
 | `get_today_uploads_count` | 433 | 65 | `force` | Đếm số video đã upload trong ngày trên Kênh Test qua YouTube Data API (cache 120s, tốn chỉ 1-2 quota units). |
 | `get_status` | 500 | 27 | `` | Kiểm tra trạng thái kết nối Kênh Phụ Test và danh sách Projects. |
 | `disconnect` | 529 | 11 | `` | Ngắt kết nối Kênh Phụ Test. |
-| `get_auth_url` | 542 | 50 | `redirect_uri, project_id` | Tạo URL đăng nhập Google OAuth cho Project được chọn hoặc project chưa kết nối tiếp theo. |
-| `finish_oauth` | 594 | 92 | `code, redirect_uri, project_id` | Hoàn tất đăng nhập OAuth và lưu token cho Project tương ứng. |
-| `get_available_service` | 688 | 92 | `project_id, force` | Lấy YouTube service từ pool (hoặc đúng 1 project nếu truyền project_id). |
-| `get_read_service` | 782 | 19 | `` | Lấy YouTube service từ bất kỳ project nào đã kết nối để đọc metadata (chỉ tốn 1 quota unit, không phụ thuộc quota upload). |
-| `get_youtube_service` | 803 | 4 | `` | Lấy YouTube API service khả dụng. |
-| `upload_test_sample` | 811 | 101 | `name, sample_path, title_vi, project_id` | Upload clip mẫu 90s Unlisted. Có project_id → chỉ dùng account đó (không xoay vòng đốt cờ các acc khác). |
-| `delete_test_video` | 914 | 20 | `video_id` | Xoá video test trên YouTube sau khi đã kiểm tra xong. |
-| `wait_and_check_test_video` | 936 | 84 | `video_id, name, max_wait_sec` | Chờ YouTube xử lý xong video và kiểm tra bản quyền Content ID chính xác. |
-| `recheck_single` | 1024 | 77 | `name` | Kiểm tra bản quyền Content ID của 1 video đã upload lên Kênh Phụ. |
-| `check_and_process_pending_rechecks` | 1103 | 26 | `force` | Quét và kiểm tra lại các video đang chờ (mặc định kiểm tra những video đã qua 15p). |
-| `start_recheck_daemon` | 1133 | 18 | `` | Khởi động daemon định kỳ kiểm tra các video đến hạn 5 phút. |
-| `run_full_test_for_season` | 1155 | 107 | `name, auto_delete, wait_for_result, title_vi, project_id` | Thực hiện quy trình test 1 bộ phim: |
-| `_batch_worker` | 1264 | 116 | `names, auto_delete, title_vi_map` |  |
-| `stop_batch_test` | 1382 | 8 | `` | Yêu cầu dừng Test All sau item hiện tại (không kill giữa upload). |
-| `start_batch_test` | 1392 | 27 | `names, limit, auto_delete, title_vi_map` | Bắt đầu chạy Test All hàng loạt ngầm. |
-| `get_batch_progress` | 1421 | 11 | `` | Lấy tiến độ Test All hiện tại và thống kê số video đang chờ 15p. |
+| `get_auth_url` | 542 | 55 | `redirect_uri, project_id` | Tạo URL đăng nhập Google OAuth cho Project được chọn hoặc project chưa kết nối tiếp theo. |
+| `finish_oauth` | 599 | 93 | `code, redirect_uri, project_id` | Hoàn tất đăng nhập OAuth và lưu token cho Project tương ứng. |
+| `get_available_service` | 694 | 95 | `project_id, force` | Lấy YouTube service từ pool (hoặc đúng 1 project nếu truyền project_id). |
+| `get_read_service` | 791 | 19 | `` | Lấy YouTube service từ bất kỳ project nào đã kết nối để đọc metadata (chỉ tốn 1 quota unit, không phụ thuộc quota upload). |
+| `get_youtube_service` | 812 | 4 | `` | Lấy YouTube API service khả dụng. |
+| `upload_test_sample` | 820 | 101 | `name, sample_path, title_vi, project_id` | Upload clip mẫu 90s Unlisted. Có project_id → chỉ dùng account đó (không xoay vòng đốt cờ các acc khác). |
+| `delete_test_video` | 923 | 20 | `video_id` | Xoá video test trên YouTube sau khi đã kiểm tra xong. |
+| `wait_and_check_test_video` | 945 | 84 | `video_id, name, max_wait_sec` | Chờ YouTube xử lý xong video và kiểm tra bản quyền Content ID chính xác. |
+| `recheck_single` | 1033 | 77 | `name` | Kiểm tra bản quyền Content ID của 1 video đã upload lên Kênh Phụ. |
+| `check_and_process_pending_rechecks` | 1112 | 26 | `force` | Quét và kiểm tra lại các video đang chờ (mặc định kiểm tra những video đã qua 15p). |
+| `start_recheck_daemon` | 1142 | 18 | `` | Khởi động daemon định kỳ kiểm tra các video đến hạn 5 phút. |
+| `run_full_test_for_season` | 1164 | 107 | `name, auto_delete, wait_for_result, title_vi, project_id` | Thực hiện quy trình test 1 bộ phim: |
+| `_batch_worker` | 1273 | 116 | `names, auto_delete, title_vi_map` |  |
+| `stop_batch_test` | 1391 | 8 | `` | Yêu cầu dừng Test All sau item hiện tại (không kill giữa upload). |
+| `start_batch_test` | 1401 | 27 | `names, limit, auto_delete, title_vi_map` | Bắt đầu chạy Test All hàng loạt ngầm. |
+| `get_batch_progress` | 1430 | 11 | `` | Lấy tiến độ Test All hiện tại và thống kê số video đang chờ 15p. |
 
 ### Config / env keys (2)
 
@@ -74,11 +74,12 @@ flowchart LR
 
 **File/artifact nhắc tới:** `channel.json`, `channel_limit.json`, `client_secret.json`, `code_verifier.txt`, `current_oauth_project.txt`, `exhausted.json`, `projects.json`, `projects_health.json`, `token.json`
 
-**Tín hiệu rủi ro (đếm tĩnh):** broad_except=34 · file_writes=13 · global_stmt=4 · sleep=6 · swallow_except=15 · threads=2
+**Tín hiệu rủi ro (đếm tĩnh):** broad_except=35 · file_writes=11 · global_stmt=4 · sleep=6 · swallow_except=16 · threads=2
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (3):**
+- **Fix logs (4):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
   - [Films UI Test Block báo hết quota dù GCP còn hạn](../../fixes/2026-11-09-tc-quota-false-positive.md)
   - [Kênh Test báo token Kênh 3 chết dù đã Reset Quota](../../fixes/2026-11-07-test-channel-exhausted-mask.md)
   - [Films UI: Studio lỗi + SyntaxError Test + poster 404 + toolbar rối](../../fixes/2026-11-06-films-ui-studio-test.md)

@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `context_studio/__main__.py` · **Lớp:** `context` · **67 dòng** (54 code) · **1 hàm**, **0 class** · sha1 `12b188d9e5`
 
 > CLI: python -m context_studio analyze <srt|asr.json> -o work/<job> Chỉ PRE-SCAN — không dịch.

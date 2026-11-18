@@ -113,13 +113,6 @@ def telegram_config() -> tuple[str | None, list[str]]:
     token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
     users = (os.getenv("TELEGRAM_ALLOWED_USERS") or "").strip()
     if not token:
-        try:
-            import config
-            token = (config.get("TELEGRAM_BOT_TOKEN") or "").strip()
-            users = users or (config.get("TELEGRAM_ALLOWED_USERS") or "").strip()
-        except Exception:
-            pass
-    if not token:
         env = _load_dotenv(Path.home() / ".hermes" / ".env")
         token = (env.get("TELEGRAM_BOT_TOKEN") or "").strip()
         users = users or (env.get("TELEGRAM_ALLOWED_USERS") or "").strip()
@@ -354,7 +347,7 @@ def _loop(work_root: Path, list_jobs, hooks, interval: int, max_jobs: int) -> No
     log_line(work_root, f"watcher start interval={interval}s max_jobs={max_jobs}")
     if (os.getenv("AGENT_TELEGRAM_STARTUP") or "").strip() in ("1", "true", "yes"):
         telegram_send(
-            f"Pineline V4 watcher ON (mỗi {interval}s, heal safe)",
+            f"Pineline V2 watcher ON (mỗi {interval}s, heal safe)",
             force=True,
             dedupe_key=f"startup:{interval}",
         )

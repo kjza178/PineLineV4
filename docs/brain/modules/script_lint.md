@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `script_lint.py` · **Lớp:** `translate` · **170 dòng** (142 code) · **10 hàm**, **0 class** · sha1 `aa6ca84066`
 
 > Soát lỗi máy móc bản dịch VI (script.json) — chạy SAU review/polish, trước TTS. autofix_rows: sửa chắc chắn đúng (không cần LLM) · «ông tôi / cô tôi» khi zh là 他/她 (không phải họ hàng)

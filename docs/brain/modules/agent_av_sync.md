@@ -2,14 +2,14 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `agent_av_sync.py` · **Lớp:** `agent` · **567 dòng** (518 code) · **11 hàm**, **0 class** · sha1 `335ca5a399`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `agent_av_sync.py` · **Lớp:** `agent` · **569 dòng** (520 code) · **11 hàm**, **0 class** · sha1 `bdf28f0e4c`
 
 > AV sync diagnose + heal — phát hiện lệch sub/audio / audio cụt sau mux. Các class chính: audio_truncated  — tiếng chết giữa phim (duck_bgm -shortest cũ)
 
 ### Phụ thuộc
 
-- **Gọi tới (import nội bộ):** [media_ts](./media_ts.md)
+- **Gọi tới (import nội bộ):** [media_ts](./media_ts.md), [source_preflight](./source_preflight.md)
 - **Được dùng bởi:** [agent_core](./agent_core.md), [routes_agent](./routes_agent.md)
 - **Test:** ❌ chưa có test import trực tiếp
 
@@ -19,6 +19,7 @@ flowchart LR
   agent_core[agent_core] --> agent_av_sync
   routes_agent[routes_agent] --> agent_av_sync
   agent_av_sync --> media_ts[media_ts]
+  agent_av_sync --> source_preflight[source_preflight]
 ```
 
 ### Hàm & class top-level
@@ -29,15 +30,15 @@ flowchart LR
 | `_rms_at` | 40 | 28 | `video, t, dur` |  |
 | `_tts_fit_stats` | 70 | 29 | `work` |  |
 | `_mux_meta` | 101 | 13 | `work` |  |
-| `diagnose_av_sync` | 116 | 210 ⚠️ | `work_root, job_id` |  |
-| `_hint` | 328 | 12 | `` |  |
-| `_invalidate_mixed` | 342 | 12 | `work` |  |
-| `_quick_gap` | 356 | 27 | `work` |  |
-| `scan_av_sync` | 385 | 69 | `work_root, job_ids, group_id, deep` | Quét nhiều job — mặc định nhanh (/v-a/). deep=True = diagnose đầy đủ (RMS). |
-| `heal_av_sync` | 456 | 67 | `work_root, job_id, apply, hooks` |  |
-| `heal_av_sync_batch` | 525 | 43 | `work_root, job_ids, group_id, apply, hooks, deep` | Scan rồi heal job broken đầu tiên (GPU 1 job). Gọi lại sau khi mux xong. |
+| `diagnose_av_sync` | 116 | 212 ⚠️ | `work_root, job_id` |  |
+| `_hint` | 330 | 12 | `` |  |
+| `_invalidate_mixed` | 344 | 12 | `work` |  |
+| `_quick_gap` | 358 | 27 | `work` |  |
+| `scan_av_sync` | 387 | 69 | `work_root, job_ids, group_id, deep` | Quét nhiều job — mặc định nhanh (/v-a/). deep=True = diagnose đầy đủ (RMS). |
+| `heal_av_sync` | 458 | 67 | `work_root, job_id, apply, hooks` |  |
+| `heal_av_sync_batch` | 527 | 43 | `work_root, job_ids, group_id, apply, hooks, deep` | Scan rồi heal job broken đầu tiên (GPU 1 job). Gọi lại sau khi mux xong. |
 
-**Hàm dài ≥120 dòng:** `diagnose_av_sync` (210, L116)
+**Hàm dài ≥120 dòng:** `diagnose_av_sync` (212, L116)
 
 **File/artifact nhắc tới:** `dub_fit.wav`, `manifest.json`, `mixed_audio.partial.wav`, `mixed_audio.wav`, `output.mp4`, `output.partial.mp4`, `source.mp4`, `sub.vi.burn.srt`, `sub.vi.srt`, `tts_fit.json`
 
@@ -45,11 +46,13 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (3):**
+- **Fix logs (5):**
+  - [Port V2 → V4: preflight/chuẩn hoá video nguồn + extract_pcm bền + FireRed cắt ở khoảng lặng + câu ASR rác / pa](../../fixes/2026-11-13-port-preflight-slice-junk.md)
+  - [Preflight + chuẩn hoá video nguồn trước khi vào job (+ 2 lỗi review extract_pcm)](../../fixes/2026-11-12-video-preflight.md)
   - [Phim dài ~12h lệch khung sub — nguyên nhân + split_parts](../../fixes/2026-11-02-longfilm-sub-drift-split.md)
   - [Video nguồn bị chép thành 2 bản (thư viện + job)](../../fixes/2026-10-07-source-duplicate-copy.md)
   - [2026-09-26 — Port duck/duck_bgm two-pass sang PinelineV2](../../fixes/2026-09-26-duck-bgm-twopass-port.md)
-- Nhắc trong CHANGELOG: **3** lần · DECISIONS: **0** lần
+- Nhắc trong CHANGELOG: **4** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->
 

@@ -1,5 +1,5 @@
 """
-Chuyển Z:\\PinelineV4\\work sang ổ khác (mặc định D:\\PinelineV4_work) giữa 2 job, không mất tiến độ.
+Chuyển Z:\\PinelineV2\\work sang ổ khác (mặc định D:\\PinelineV2_work) giữa 2 job, không mất tiến độ.
 
 1. Copy trước (robocopy /MIR) trong lúc job hiện tại vẫn chạy.
 2. Rút các job đang chờ khỏi hàng + tắt Auto-pilot → worker dừng sau job hiện tại.
@@ -7,7 +7,7 @@ Chuyển Z:\\PinelineV4\\work sang ổ khác (mặc định D:\\PinelineV4_work)
 4. Dừng server + sidecar, copy nốt phần chênh, đổi work → work_old_migrated, tạo junction work → đích.
 5. Khởi động lại server + sidecar, xếp lại các job đã rút (đúng thứ tự + opts), trả Auto-pilot về như cũ.
 
-Chạy:  python migrate_work.py [D:\\PinelineV4_work]
+Chạy:  python migrate_work.py [D:\\PinelineV2_work]
 Log:   migrate_work.log (cạnh file này, ngoài work/)
 """
 from __future__ import annotations
@@ -25,10 +25,9 @@ import requests
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "work"
-DST = Path(sys.argv[1] if len(sys.argv) > 1 else r"D:\PinelineV4_work")
+DST = Path(sys.argv[1] if len(sys.argv) > 1 else r"D:\PinelineV2_work")
 OLD = ROOT / "work_old_migrated"
-_port = (os.getenv("PORT") or "8804").strip()
-BASE = (os.getenv("PINELINE_BASE") or f"http://127.0.0.1:{_port}").strip().rstrip("/")
+BASE = (os.getenv("PINELINE_BASE") or "http://127.0.0.1:8801").rstrip("/")
 SIDECAR = "http://127.0.0.1:8802"
 LOG = ROOT / "migrate_work.log"
 PLAN = ROOT / "migrate_work_plan.json"
@@ -171,10 +170,7 @@ def wait_http(url: str, sec: int) -> bool:
 
 def start_services_and_requeue(pending: list[str], opts: dict, ap_was: bool) -> bool:
     from agent_autopilot import set_enabled
-    bat = "run_v4.bat"
-    if not (ROOT / bat).is_file():
-        raise SystemExit(f"Thiếu {ROOT / bat} — không fallback run_v2 (đã archive).")
-    start_bat(bat)
+    start_bat("run_v2.bat")
     if not wait_http(BASE + "/api/agent/status", 180):
         tg("server không lên sau 3 phút — cần kiểm tra")
         return False
@@ -249,7 +245,7 @@ def main() -> None:
     tg("job xong — dừng server vài phút để chuyển nốt")
     for p in procs("agent_tele_cmd.py"):
         kill_with_parent_cmd(p)
-    for p in procs(f"server.py --host 127.0.0.1 --port {_port}"):
+    for p in procs("server.py --host 127.0.0.1 --port 8801"):
         kill_with_parent_cmd(p)
     time.sleep(4)
     try:

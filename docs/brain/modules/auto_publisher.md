@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `auto_publisher.py` · **Lớp:** `publish` · **1567 dòng** (1353 code) · **36 hàm**, **0 class** · sha1 `077c68d3f6`
 
 > auto_publisher.py — Tự động hoá toàn trình: Sau khi render xong → Tự tạo Metadata SEO & Thumbnail 16:9 bằng Aurora AI → Tự Upload trực tiếp ngầm lên YouTube qua API.
@@ -11,7 +11,7 @@
 
 - **Gọi tới (import nội bộ):** [agent_tele_cmd](./agent_tele_cmd.md), [fileio](./fileio.md), [film_db](./film_db.md), [job_queue](./job_queue.md), [manifest](./manifest.md), [meta_studio](./meta_studio.md)
 - **Được dùng bởi:** [agent_feeder](./agent_feeder.md), [agent_tele_cmd](./agent_tele_cmd.md), [routes_uploader_settings](./routes_uploader_settings.md), [server](./server.md)
-- **Test:** `tests/test_auto_publisher_dedup.py`, `tests/test_meta_and_thumb.py`
+- **Test:** `tests/test_auto_publisher_dedup.py`, `tests/test_meta_and_thumb.py`, `tests/test_upload_limit_stop.py`
 - **Thư viện ngoài:** `PIL`, `google`, `googleapiclient`
 
 ```mermaid
@@ -82,7 +82,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (4):**
+- **Fix logs (5):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
   - [`/api/hg/poster` 502 với job_id / `downloads`](../../fixes/2026-11-09-hg-poster-502-junk-name.md)
   - [Auto-split part (Phần N/N) bị đưa vào upload](../../fixes/2026-11-08-skip-split-part-upload.md)
   - [Skip đang upload khó tìm — UX sticky + Done; cảnh báo file >11.5h](../../fixes/2026-11-07-uploader-skip-ux.md)

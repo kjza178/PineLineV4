@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `uploader_settings_api.py` · **Lớp:** `publish` · **670 dòng** (579 code) · **31 hàm**, **0 class** · sha1 `a6d85c3139`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `uploader_settings_api.py` · **Lớp:** `publish` · **675 dòng** (584 code) · **31 hàm**, **0 class** · sha1 `ea992060b3`
 
 > Settings + YouTube Uploader API — dùng được từ sidecar :8802 (stdlib) và FastAPI. Trả về (http_status: int, body: dict). Không phụ thuộc FastAPI.
 
@@ -41,23 +41,23 @@ flowchart LR
 | `_read_history` | 101 | 17 | `limit` |  |
 | `_is_yt_uploader_running` | 120 | 16 | `` |  |
 | `_enrich_queue_item` | 138 | 13 | `it` |  |
-| `get_settings` | 155 | 54 | `` |  |
-| `_save_cfg_updates` | 211 | 18 | `updates` |  |
-| `update_settings` | 231 | 31 | `payload` |  |
-| `test_telegram` | 264 | 30 | `payload` |  |
-| `test_llm` | 296 | 31 | `payload` |  |
-| `get_uploader_status` | 331 | 37 | `` |  |
-| `_oversized_warnings` | 370 | 20 | `path, duration_sec` | Cảnh báo file quá dài / quá nặng cho YouTube. |
-| `enqueue_upload` | 392 | 89 | `payload` |  |
-| `remove_upload_item` | 483 | 25 | `payload` |  |
-| `clear_done_uploads` | 510 | 11 | `` |  |
-| `clear_skipped` | 523 | 6 | `` |  |
-| `skip_upload_item` | 531 | 23 | `payload` | Đánh dấu 1 mục (chờ hoặc đang tải) = bỏ qua. |
-| `skip_current_upload` | 556 | 28 | `` | Skip video đang upload (+ báo hiệu yt_uploader dừng item hiện tại). |
-| `move_upload_item` | 586 | 14 | `payload` | Đổi thứ tự hàng chờ: index → to_index. |
-| `save_uploader_settings` | 602 | 11 | `payload` |  |
-| `launch_uploader` | 615 | 18 | `` |  |
-| `dispatch` | 635 | 36 | `method, path, body` | Router nhỏ cho agent_tele_cmd. None = không khớp. |
+| `get_settings` | 155 | 57 | `` |  |
+| `_save_cfg_updates` | 214 | 18 | `updates` |  |
+| `update_settings` | 234 | 33 | `payload` |  |
+| `test_telegram` | 269 | 30 | `payload` |  |
+| `test_llm` | 301 | 31 | `payload` |  |
+| `get_uploader_status` | 336 | 37 | `` |  |
+| `_oversized_warnings` | 375 | 20 | `path, duration_sec` | Cảnh báo file quá dài / quá nặng cho YouTube. |
+| `enqueue_upload` | 397 | 89 | `payload` |  |
+| `remove_upload_item` | 488 | 25 | `payload` |  |
+| `clear_done_uploads` | 515 | 11 | `` |  |
+| `clear_skipped` | 528 | 6 | `` |  |
+| `skip_upload_item` | 536 | 23 | `payload` | Đánh dấu 1 mục (chờ hoặc đang tải) = bỏ qua. |
+| `skip_current_upload` | 561 | 28 | `` | Skip video đang upload (+ báo hiệu yt_uploader dừng item hiện tại). |
+| `move_upload_item` | 591 | 14 | `payload` | Đổi thứ tự hàng chờ: index → to_index. |
+| `save_uploader_settings` | 607 | 11 | `payload` |  |
+| `launch_uploader` | 620 | 18 | `` |  |
+| `dispatch` | 640 | 36 | `method, path, body` | Router nhỏ cho agent_tele_cmd. None = không khớp. |
 
 ### Config / env keys (2)
 
@@ -71,7 +71,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (2):**
+- **Fix logs (3):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
   - [Skip đang upload khó tìm — UX sticky + Done; cảnh báo file >11.5h](../../fixes/2026-11-07-uploader-skip-ux.md)
   - [Settings + Uploader API 404 trên :8802; thiếu skip upload](../../fixes/2026-11-07-uploader-settings-8802.md)
 - Nhắc trong CHANGELOG: **1** lần · DECISIONS: **0** lần

@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `film_db.py` · **Lớp:** `publish` · **1091 dòng** (953 code) · **42 hàm**, **0 class** · sha1 `8104b8759a`
 
 > Database phim đã làm (SQLite) — nguồn sự thật lâu dài, không mất khi xoá thư mục job. films   : 1 dòng / job — tên gốc + tên Việt, series/mùa, file nguồn, trạng thái, thời lượng, output, config lồng tiếng, link YouTube (
@@ -12,7 +12,7 @@
 - **Gọi tới (import nội bộ):** [check_block](./check_block.md), [hongguo_bridge](./hongguo_bridge.md)
 - **Hot-reload (`importlib.reload`):** `check_block`
 - **Được dùng bởi:** [agent_core](./agent_core.md), [agent_feeder](./agent_feeder.md), [agent_tele_cmd](./agent_tele_cmd.md), [auto_publisher](./auto_publisher.md), [check_block](./check_block.md), [films_merge_api](./films_merge_api.md), [hongguo_bridge](./hongguo_bridge.md), [lib_check](./lib_check.md), [meta_studio](./meta_studio.md), [routes_films](./routes_films.md), [routes_hg](./routes_hg.md), [routes_uploader_settings](./routes_uploader_settings.md), [series_glossary](./series_glossary.md), [split_parts](./split_parts.md), [test_channel](./test_channel.md)
-- **Test:** `tests/test_auto_publisher_dedup.py`
+- **Test:** `tests/test_auto_publisher_dedup.py`, `tests/test_translate_simple_next_review.py`, `tests/test_translate_simple_scenarios.py`
 - **Thư viện ngoài:** `agents`
 
 ```mermaid
@@ -94,7 +94,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (4):**
+- **Fix logs (5):**
+  - [2026-11-11 — machine-config: cổng/thư mục phụ thuộc máy thành setting (V4 — layout phẳng)](../../fixes/2026-11-11-machine-config.md)
   - [`/api/hg/poster` 502 với job_id / `downloads`](../../fixes/2026-11-09-hg-poster-502-junk-name.md)
   - [`/library/action` crash — gọi API film_db không tồn tại](../../fixes/2026-11-02-library-action-missing-api.md)
   - [Phim đã xoá thư mục vẫn tồn đọng trong films/ui và thiếu chức năng xoá phim](../../fixes/2026-10-09-films-ui-delete-missing.md)

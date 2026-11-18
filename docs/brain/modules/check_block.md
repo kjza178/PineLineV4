@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `check_block.py` · **Lớp:** `ops` · **350 dòng** (296 code) · **4 hàm**, **0 class** · sha1 `e2b4059b4c`
 
 > check_block.py — Module kiểm tra trạng thái Bản quyền / Block YouTube (Cơ chế 1: Không cần đăng nhập). Kiểm tra qua YouTube oEmbed và YouTube Watch Page (ytInitialPlayerResponse). Phát hiện: Clean (Sạch), Blocked (Chặn t

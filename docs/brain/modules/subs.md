@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `subs.py` · **Lớp:** `render` · **1106 dòng** (970 code) · **34 hàm**, **0 class** · sha1 `37a7dee4f4`
 
 > subs.py — Sinh phụ đề .srt từ danh sách câu có timestamp. Dùng chung: asr.json (tiếng Trung, key 'text') và script.json (tiếng Việt, key 'vi') đều là list [{start, end, text/vi, ...}] -> đổ ra .srt chuẩn để import vào
@@ -10,7 +10,7 @@
 ### Phụ thuộc
 
 - **Gọi tới (import nội bộ):** [config](./config.md)
-- **Được dùng bởi:** [agent_hang_fix](./agent_hang_fix.md), [agent_pronoun_pass](./agent_pronoun_pass.md), [asr](./asr.md), [asr_align_nano_para](./asr_align_nano_para.md), [asr_fix_align](./asr_fix_align.md), [asr_repair](./asr_repair.md), [asr_spam](./asr_spam.md), [firered_asr](./firered_asr.md), [fun_asr_nano](./fun_asr_nano.md), [hybrid_asr](./hybrid_asr.md), [nano_fa_asr](./nano_fa_asr.md), [paraformer_zh](./paraformer_zh.md), [render](./render.md), [script_lint](./script_lint.md), [sensevoice_asr](./sensevoice_asr.md), [server](./server.md), [translate](./translate.md)
+- **Được dùng bởi:** [agent_hang_fix](./agent_hang_fix.md), [agent_pronoun_pass](./agent_pronoun_pass.md), [agent_qa_ask](./agent_qa_ask.md), [agent_qa_fix](./agent_qa_fix.md), [asr](./asr.md), [asr_align_nano_para](./asr_align_nano_para.md), [asr_fix_align](./asr_fix_align.md), [asr_repair](./asr_repair.md), [asr_spam](./asr_spam.md), [firered_asr](./firered_asr.md), [fun_asr_nano](./fun_asr_nano.md), [hybrid_asr](./hybrid_asr.md), [nano_fa_asr](./nano_fa_asr.md), [paraformer_zh](./paraformer_zh.md), [render](./render.md), [script_lint](./script_lint.md), [sensevoice_asr](./sensevoice_asr.md), [server](./server.md), [translate](./translate.md), [translate_simple.pipeline](./translate_simple.pipeline.md)
 - **Test:** ❌ chưa có test import trực tiếp
 
 ```mermaid
@@ -18,6 +18,8 @@ flowchart LR
   subs[[subs]]
   agent_hang_fix[agent_hang_fix] --> subs
   agent_pronoun_pass[agent_pronoun_pass] --> subs
+  agent_qa_ask[agent_qa_ask] --> subs
+  agent_qa_fix[agent_qa_fix] --> subs
   asr[asr] --> subs
   asr_align_nano_para[asr_align_nano_para] --> subs
   asr_fix_align[asr_fix_align] --> subs
@@ -29,8 +31,6 @@ flowchart LR
   nano_fa_asr[nano_fa_asr] --> subs
   paraformer_zh[paraformer_zh] --> subs
   render[render] --> subs
-  script_lint[script_lint] --> subs
-  sensevoice_asr[sensevoice_asr] --> subs
   subs --> config[config]
 ```
 
@@ -83,7 +83,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [Port V2 → V4: luồng dịch `translate_simple` (MẶC ĐỊNH) + Demucs trước ASR](../../fixes/2026-11-12-port-simple-demucs.md)
 - **Reviews:** [2026-10-06-code-review](../../reviews/2026-10-06-code-review.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 

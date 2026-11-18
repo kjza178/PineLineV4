@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `asr_fix_align.py` · **Lớp:** `asr` · **330 dòng** (288 code) · **7 hàm**, **0 class** · sha1 `dc110ecfd9`
 
 > asr_fix_align.py — Phương án 3: fix monotonic_fix Bước 1 (fallback): chỗ timing bịa/đảo → trả start/end về Nano VAD Bước 2 (forced align): Qwen3-ForcedAligner chỉ trên các đoạn vừa fallback
@@ -46,7 +46,8 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- Fix logs: —
+- **Fix logs (1):**
+  - [asr-demucs-default: ASR mặc định chạy trên giọng tách Demucs + separate.py chia khúc tại khoảng lặng, cắt/ghép](../../fixes/2026-11-12-asr-demucs-default.md)
 - Nhắc trong CHANGELOG: **0** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->

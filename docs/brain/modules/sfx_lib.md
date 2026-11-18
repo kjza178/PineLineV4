@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `sfx_lib.py` · **Lớp:** `render` · **438 dòng** (372 code) · **21 hàm**, **0 class** · sha1 `340e339842`
 
 > sfx_lib.py — chế độ audio `sfx_lib`: giọng Việt + TIẾNG ĐỘNG gốc + NHẠC KHO SẠCH theo mức. Bỏ toàn bộ nhạc nền gốc (nguồn claim Content ID) nhưng giữ tiếng động (nổ, va đập, xe...). Chuẩn bị trong work/<job>/ (cache theo
@@ -59,7 +59,9 @@ flowchart LR
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (1):**
+- **Fix logs (3):**
+  - [asr-demucs-default: ASR mặc định chạy trên giọng tách Demucs + separate.py chia khúc tại khoảng lặng, cắt/ghép](../../fixes/2026-11-12-asr-demucs-default.md)
+  - [Tối ưu đợt 11/11: dừng REVIEW song song chậm · audio run-all/mux lệch queue · restart chờ vô hạn · ghi plan kh](../../fixes/2026-11-11-optimize-b5-b6-b8-b10.md)
   - [sfx_lib: audio trộn có lúc hụt đuôi (sidechaincompress kết thúc sớm)](../../fixes/2026-10-07-sfxlib-sidechain-short.md)
 - Nhắc trong CHANGELOG: **8** lần · DECISIONS: **3** lần
 

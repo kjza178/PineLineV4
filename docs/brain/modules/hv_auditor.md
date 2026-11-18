@@ -2,8 +2,8 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `hv_auditor.py` · **Lớp:** `translate` · **475 dòng** (401 code) · **15 hàm**, **0 class** · sha1 `24869f8ebc`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `hv_auditor.py` · **Lớp:** `translate` · **475 dòng** (401 code) · **15 hàm**, **0 class** · sha1 `58d7cbe252`
 
 > Hán-Việt auditor — chống glossary khóa sai âm (vd 逆→Nghị thay vì Nghịch). 1) Unihan kVietnamese: đối chiếu từng chữ Hán với âm VI trong tên/thuật ngữ kiểu HV. 2) Consistency: cùng một chữ Hán trong glossary phải cùng một
 

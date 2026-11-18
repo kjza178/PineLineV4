@@ -2,7 +2,7 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
 **File:** `context_studio/analyzer.py` · **Lớp:** `context` · **264 dòng** (245 code) · **5 hàm**, **0 class** · sha1 `7224e79da0`
 
 > 01 — Context analyzer: SRT Trung → glossary draft (+ style_lock).

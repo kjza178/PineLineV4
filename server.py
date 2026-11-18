@@ -599,6 +599,35 @@ def _heal_stale_running(work_dir: Path) -> list[str]:
     return healed
 
 
+def _unmark_running_on_hold(work_dir: Path, why: str) -> list[str]:
+    """2026-11-17b: hàng đợi / Chạy tự động mark_running bước KẾ (vd mux) TRƯỚC khi chạy; nếu
+    pipeline dừng ở HOLD/QA gate thì bước đó chưa từng chạy → trả về pending.
+    Trước: ff8e66b475a7 mux «running» 40' không có file nào, Brain tưởng đang render → chờ mãi."""
+    reset: list[str] = []
+
+    def _fn(d: dict):
+        stages = d.get("stages") or {}
+        for s in ("tts", "mux"):
+            st = stages.get(s)
+            if isinstance(st, dict) and str(st.get("status") or "").lower() == "running":
+                st = dict(st)
+                st["status"] = "pending"
+                st["cur_text"] = f"chờ — {why}"[:160]
+                st.pop("started_at", None)
+                st["updated_at"] = time.time()
+                stages[s] = st
+                reset.append(s)
+        return None if reset else False
+
+    try:
+        Manifest(Path(work_dir)).update(_fn)
+    except Exception as e:  # noqa: BLE001
+        print(f"[hold] unmark running {Path(work_dir).name}: {e}", flush=True)
+    if reset:
+        print(f"[hold] {Path(work_dir).name}: bỏ cờ running giả {reset} ({why})", flush=True)
+    return reset
+
+
 def _next_incomplete_stage(work_dir: Path) -> str | None:
     """Bước WIRED đầu tiên chưa done (để mark_running đúng — không ép lại ASR)."""
     work_dir = Path(work_dir)
@@ -2194,8 +2223,8 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
         _run_engine(_asr_script(asr_eng), wd)
         if stopped():
             return
-        # translate-simple (port V4 2026-11-12): MẶC ĐỊNH luồng mới; TRANSLATE_PIPELINE=legacy → luồng cũ y nguyên.
-        # P4 (port F2 V2): job đã bắt đầu luồng cũ (park/review dở) → giữ luồng cũ (manifest.translate_pipeline).
+        # translate-simple: F2 2026-11-12 mặc định = luồng mới; TRANSLATE_PIPELINE=legacy → luồng cũ.
+        # Job đã bắt đầu luồng cũ (park/review dở) → giữ luồng cũ (manifest.translate_pipeline).
         _simple = _translate_pipeline_simple(wd)
         if _simple:
             if not _auto_translate_simple(wd, job_id, target):
@@ -2407,6 +2436,7 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
             tr["cur_text"] = "HOLD — chờ duyệt script trước TTS"
             m_hold.save()
             print(f"[auto] {job_id}: HOLD after translate — bỏ qua TTS/mux đến khi clear hold + chạy tiếp")
+            _unmark_running_on_hold(wd, "HOLD sau dịch")
             return
         _run_requested_review(wd, target)
         if stopped():
@@ -2442,6 +2472,7 @@ def _auto_gpu(job_id: str, target: str, audio_mode: str, voice_vol: float,
                     m_qa.save()
                 except Exception as e_qa:  # noqa: BLE001
                     print(f"[auto] {job_id}: stamp QA HOLD: {e_qa}", flush=True)
+                _unmark_running_on_hold(wd, "HOLD QA gate")
                 return
             print(f"[auto] {job_id}: QA pass — tiếp TTS")
             if stopped():
@@ -3660,13 +3691,13 @@ def api_fs_pick_dirs(
     import subprocess
     import sys
 
-    init = (initial or "").strip().strip('"') or (_config_boot.get("LIBRARY_DIR") or "D:\\Lib")
+    init = (initial or "").strip().strip('"') or "D:\\Lib"
     try:
         p0 = Path(init).expanduser()
         if p0.is_dir():
             init = str(p0.resolve())
     except OSError:
-        init = _config_boot.get("LIBRARY_DIR") or "D:\\Lib"
+        init = "D:\\Lib"
 
     script = _engine_script_path("pick_dirs_dialog.py")
     if not script.is_file():
@@ -5140,11 +5171,13 @@ def _queue_run_one(job_id: str, opts: dict) -> tuple[str, str]:
             why_h = held or (
                 "qa_blocked" if agent_end.get("qa_blocked") else "after_translate"
             )
+            _unmark_running_on_hold(work_dir, f"HOLD {why_h}")
             return "held", f"dừng chờ duyệt ({why_h}) — giữ ghế hàng đợi đến khi sẵn sàng"
         # Soft park khi stamp soát/HOLD trên translate (không fail → worker không nhảy job kế)
         tr_end = m_curr.stage("translate") or {}
         cur_tr = str(tr_end.get("cur_text") or "")
         if "soát dở" in cur_tr or "HOLD" in cur_tr:
+            _unmark_running_on_hold(work_dir, "chờ soát/HOLD")
             return "held", f"chờ soát/HOLD — {cur_tr[:120]}"
         # Bóc tách lỗi cụ thể từ stage bị dừng (vd dịch hết quota LLM) để báo chính xác
         for stg in ("download", "asr", "translate", "tts", "mux"):
@@ -5996,7 +6029,7 @@ def _link_or_copy(src: Path, dest: Path) -> str:
 
 
 def _direct_source_roots() -> list[Path]:
-    raw = _config_boot.get("SOURCE_DIRECT_ROOTS", _config_boot.get("LIBRARY_DIR", r"D:\Lib")) or ""
+    raw = _config_boot.get("SOURCE_DIRECT_ROOTS", r"D:\Lib") or ""
     return [Path(p.strip()) for p in raw.split(";") if p.strip()]
 
 

@@ -2,17 +2,17 @@
 
 [← Index](../generated/module-index.md) · [Brain home](../README.md)
 
-<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-11 02:37. Đừng sửa tay khối này. -->
-**File:** `render.py` · **Lớp:** `render` · **3061 dòng** (2694 code) · **72 hàm**, **0 class** · sha1 `462db4366b`
+<!-- AUTO:START — sinh bởi scripts/brain_build.py 2026-11-17 19:05. Đừng sửa tay khối này. -->
+**File:** `render.py` · **Lớp:** `render` · **3143 dòng** (2769 code) · **75 hàm**, **0 class** · sha1 `efd7d4a0f4`
 
 > render.py — STAGE 7 (Ghép + xuất): ráp video lồng tiếng "sạch như bản localize". Video (1 lượt ffmpeg): 1. Zoom+crop / Ken Burns+Drift (uniqueness).
 
 ### Phụ thuộc
 
-- **Gọi tới (import nội bộ):** [assemble](./assemble.md), [config](./config.md), [manifest](./manifest.md), [media_ts](./media_ts.md), [ocr](./ocr.md), [render_fx](./render_fx.md), [sfx_lib](./sfx_lib.md), [subs](./subs.md), [vram](./vram.md)
+- **Gọi tới (import nội bộ):** [assemble](./assemble.md), [config](./config.md), [manifest](./manifest.md), [media_ts](./media_ts.md), [ocr](./ocr.md), [render_fx](./render_fx.md), [sfx_lib](./sfx_lib.md), [source_preflight](./source_preflight.md), [subs](./subs.md), [vram](./vram.md)
 - **Được dùng bởi:** [hardsub_asr](./hardsub_asr.md), [scripts.check_batch4](./scripts.check_batch4.md), [server](./server.md), [split_parts](./split_parts.md)
 - **Được nhắc tên file `.py` (subprocess/script) bởi:** [restart_server](./restart_server.md), [scripts.check_batch3](./scripts.check_batch3.md), [sfx_lib](./sfx_lib.md)
-- **Test:** `tests/test_render_expr.py`, `tests/test_sfx_lib.py`
+- **Test:** `tests/test_hardsub_detection.py`, `tests/test_parent_rerun_after_done.py`, `tests/test_render_expr.py`, `tests/test_sfx_lib.py`, `tests/test_video_preflight.py`
 - **Thư viện ngoài:** `PIL`, `numpy`, `rapidocr_onnxruntime`, `soundfile`
 
 ```mermaid
@@ -29,6 +29,7 @@ flowchart LR
   render --> ocr[ocr]
   render --> render_fx[render_fx]
   render --> sfx_lib[sfx_lib]
+  render --> source_preflight[source_preflight]
   render --> subs[subs]
   render --> vram[vram]
 ```
@@ -51,18 +52,18 @@ flowchart LR
 | `_cfg_num` | 450 | 6 | `key, default` |  |
 | `chunk_plan` | 458 | 8 | `total` | (giây mỗi khúc, số khúc chạy cùng lúc). RENDER_CHUNK_SEC=0 hoặc RENDER_CHUNK_PAR<2 → 1 lượt. |
 | `chunk_cuts` | 468 | 19 | `video, total, sec, avoid` | Điểm cắt mỗi ~sec giây, nằm GIỮA 2 khung liền nhau (không trùng mốc khung → không lặp/mất khung). |
-| `_run_chunked` | 489 | 190 ⚠️ | `video, work_dir, graph, venc, pre_in, cuts, total, mixed, abit, out…` | Render video theo khúc (giữ mốc gốc), tối đa `par` khúc chạy cùng lúc, ghép copy, gắn audio 1 lần. |
-| `_encoder_pref` | 687 | 11 | `` |  |
-| `_nvenc_state` | 700 | 9 | `` |  |
-| `_nvenc_save` | 711 | 5 | `d` |  |
-| `_want_nvenc` | 718 | 14 | `` |  |
-| `_nvenc_mark_ok` | 734 | 2 | `` |  |
-| `_nvenc_mark_fail` | 738 | 16 | `err` |  |
-| `_attach_filter_complex` | 756 | 6 | `cmd, graph, work_dir` | Ghi filtergraph ra file — tránh cắt cmdline Windows (~8191 ký tự). |
-| `_ff_input` | 764 | 8 | `path, work_dir` | Đường dẫn -i khi ffmpeg cwd=work_dir: file trong job → tên/relative; ngoài → absolute. |
-| `_x264_cmd` | 774 | 15 | `cmd` | Đổi lệnh nvenc → libx264 (bỏ flag chỉ GPU). |
-| `normalize_vbitrate` | 791 | 16 | `v, W, H` | Chuẩn hoá bitrate H264: trả (vbit, buf). Cho phép 2M / 4M / 8M. |
-| `_find_video` | 813 | 9 | `work_dir` |  |
+| `_run_chunked` | 489 | 195 ⚠️ | `video, work_dir, graph, venc, pre_in, cuts, total, mixed, abit, out…` | Render video theo khúc (giữ mốc gốc), tối đa `par` khúc chạy cùng lúc, ghép copy, gắn audio 1 lần. |
+| `_encoder_pref` | 692 | 11 | `` |  |
+| `_nvenc_state` | 705 | 9 | `` |  |
+| `_nvenc_save` | 716 | 5 | `d` |  |
+| `_want_nvenc` | 723 | 14 | `` |  |
+| `_nvenc_mark_ok` | 739 | 2 | `` |  |
+| `_nvenc_mark_fail` | 743 | 16 | `err` |  |
+| `_attach_filter_complex` | 761 | 6 | `cmd, graph, work_dir` | Ghi filtergraph ra file — tránh cắt cmdline Windows (~8191 ký tự). |
+| `_ff_input` | 769 | 8 | `path, work_dir` | Đường dẫn -i khi ffmpeg cwd=work_dir: file trong job → tên/relative; ngoài → absolute. |
+| `_x264_cmd` | 779 | 15 | `cmd` | Đổi lệnh nvenc → libx264 (bỏ flag chỉ GPU). |
+| `normalize_vbitrate` | 796 | 16 | `v, W, H` | Chuẩn hoá bitrate H264: trả (vbit, buf). Cho phép 2M / 4M / 8M. |
+| `_find_video` | 818 | 4 | `work_dir` |  |
 | `_size` | 824 | 7 | `video` |  |
 | `_fps` | 833 | 12 | `video` |  |
 | `_esc` | 847 | 4 | `t` | Escape text cho drawtext. |
@@ -104,25 +105,30 @@ flowchart LR
 | `_uses_sidechain` | 2256 | 4 | `mode` | duck / duck_bgm / sfx_lib dùng sidechaincompress — KHÔNG chạy cùng encode video |
 | `_stage_note` | 2262 | 16 | `m` | Callback ghi dòng log tiến trình con vào cur_text của stage render (thưa ≥2 s). |
 | `_ensure_mixed_audio` | 2280 | 71 | `work_dir, video, dub, no_vocals, vocals, audio_mode, voice_vol, ori…` | Pass 1: mixed_audio.wav (audio-only + sidechain). Trả (path, used_mode). |
-| `_mix_signature` | 2353 | 15 | `cmd, af, total, work_dir` | Filter + (đường dẫn, size, mtime) mọi input -i + độ dài — đổi thì phải trộn lại. |
-| `_write_mix_signature` | 2370 | 7 | `path, sig` |  |
-| `_build_audio_filter` | 2379 | 141 ⚠️ | `cmd, work_dir, dub, no_vocals, vocals, audio_mode, voice_vol, orig_vol` | Dựng filter audio + THÊM input vào cmd. Trả (filter, tên_chế_độ_thực). |
-| `run_render` | 2522 | 492 ⚠️ | `work_dir, zoom, add_sub, hardsub_blur, out_name, force, audio_mode,…` |  |
-| `main` | 3016 | 42 | `argv` |  |
+| `_loudnorm_cfg` | 2353 | 13 | `` | fix 2026-11-13: chuẩn hoá độ to bản trộn cho YouTube (−14 LUFS). RENDER_LOUDNORM=0 → tắt (như cũ). |
+| `_measure_lufs` | 2368 | 22 | `path` | Integrated loudness (EBU R128) của file audio — chỉ đo, không ghi. |
+| `_loudnorm_gain_filter` | 2392 | 37 | `mixed` | Lệnh tăng/giảm TUYẾN TÍNH + alimiter chặn đỉnh (không nén động → giữ nguyên chất giọng). |
+| `_mix_signature` | 2431 | 15 | `cmd, af, total, work_dir` | Filter + (đường dẫn, size, mtime) mọi input -i + độ dài — đổi thì phải trộn lại. |
+| `_write_mix_signature` | 2448 | 7 | `path, sig` |  |
+| `_build_audio_filter` | 2457 | 141 ⚠️ | `cmd, work_dir, dub, no_vocals, vocals, audio_mode, voice_vol, orig_vol` | Dựng filter audio + THÊM input vào cmd. Trả (filter, tên_chế_độ_thực). |
+| `run_render` | 2600 | 496 ⚠️ | `work_dir, zoom, add_sub, hardsub_blur, out_name, force, audio_mode,…` |  |
+| `main` | 3098 | 42 | `argv` |  |
 
-**Hàm dài ≥120 dòng:** `run_render` (492, L2522), `build_video_filter` (338, L1891), `detect_hardsub_track` (217, L1303), `_run_chunked` (190, L489), `_build_audio_filter` (141, L2379), `detect_overlays` (134, L1150), `_ffmpeg_progress` (132, L152)
+**Hàm dài ≥120 dòng:** `run_render` (496, L2600), `build_video_filter` (338, L1891), `detect_hardsub_track` (217, L1303), `_run_chunked` (195, L489), `_build_audio_filter` (141, L2457), `detect_overlays` (134, L1150), `_ffmpeg_progress` (132, L152)
 
-### Config / env keys (41)
+### Config / env keys (44)
 
-`BYPASS_SPEED`, `CENSOR_BLUR`, `CENSOR_RANGES`, `HARDSUB_BAR_ALPHA`, `HARDSUB_BAR_RADIUS`, `HARDSUB_BLUR`, `HARDSUB_BLUR_MARGIN`, `HARDSUB_BLUR_MAX_H`, `HARDSUB_BLUR_R`, `HARDSUB_BLUR_W`, `HARDSUB_COVER_FULLW`, `HARDSUB_FIXED_BOTTOM`, `HARDSUB_FORCE_BLUR`, `HARDSUB_FULL_COVER_RATIO`, `HARDSUB_GAP_FILL_SEC`, `HARDSUB_MODE`, `HARDSUB_PAD_BOTTOM`, `HARDSUB_PAD_TOP`, `HARDSUB_REDETECT`, `HARDSUB_STRETCH_FULLW`, `HARDSUB_STRETCH_SIGMA`, `HARDSUB_STRETCH_SIGMA_V`, `HARDSUB_STYLE`, `HARDSUB_TRACK_MAX_SAMPLES`, `RENDER_ENCODER`, `RENDER_SPEED`, `SUB_ALIGN`, `SUB_BOLD`, `SUB_COLOR`, `SUB_FOLLOW_HARDSUB`, `SUB_FONT`, `SUB_FONT_SIZE`, `SUB_MARGIN_L`, `SUB_MARGIN_R`, `SUB_MARGIN_V`, `SUB_OUTLINE`, `SUB_OUTLINE_COLOR`, `SUB_SHADOW`, `WM_FORCE_CORNERS`, `WM_MAX_SAMPLES`, `WM_SAMPLE_SEC`
+`BYPASS_SPEED`, `CENSOR_BLUR`, `CENSOR_RANGES`, `HARDSUB_BAR_ALPHA`, `HARDSUB_BAR_RADIUS`, `HARDSUB_BLUR`, `HARDSUB_BLUR_MARGIN`, `HARDSUB_BLUR_MAX_H`, `HARDSUB_BLUR_R`, `HARDSUB_BLUR_W`, `HARDSUB_COVER_FULLW`, `HARDSUB_FIXED_BOTTOM`, `HARDSUB_FORCE_BLUR`, `HARDSUB_FULL_COVER_RATIO`, `HARDSUB_GAP_FILL_SEC`, `HARDSUB_MODE`, `HARDSUB_PAD_BOTTOM`, `HARDSUB_PAD_TOP`, `HARDSUB_REDETECT`, `HARDSUB_STRETCH_FULLW`, `HARDSUB_STRETCH_SIGMA`, `HARDSUB_STRETCH_SIGMA_V`, `HARDSUB_STYLE`, `HARDSUB_TRACK_MAX_SAMPLES`, `RENDER_ENCODER`, `RENDER_LOUDNORM`, `RENDER_LOUDNORM_I`, `RENDER_LOUDNORM_TP`, `RENDER_SPEED`, `SUB_ALIGN`, `SUB_BOLD`, `SUB_COLOR`, `SUB_FOLLOW_HARDSUB`, `SUB_FONT`, `SUB_FONT_SIZE`, `SUB_MARGIN_L`, `SUB_MARGIN_R`, `SUB_MARGIN_V`, `SUB_OUTLINE`, `SUB_OUTLINE_COLOR`, `SUB_SHADOW`, `WM_FORCE_CORNERS`, `WM_MAX_SAMPLES`, `WM_SAMPLE_SEC`
 
-**File/artifact nhắc tới:** `.follow.ass`, `.nvenc_state.json`, `.partial.mp4`, `_audio.m4a`, `_chunks.txt`, `_filter_complex.txt`, `censor.json`, `dub_fit.wav`, `dub_tts.wav`, `hardsub_band.json`, `hardsub_track.json`, `meta.json`, `mixed_audio.json`, `mixed_audio.partial.wav`, `mixed_audio.wav`, `no_vocals.wav`, `ocr.json`, `output.mp4`, `script.display.json`, `script.json`, `sub.vi.burn.srt`, `sub.vi.srt`, `tts.json`, `tts_fit.json`, `vocals.wav`
+**File/artifact nhắc tới:** `.follow.ass`, `.nvenc_state.json`, `.partial.mp4`, `_audio.m4a`, `_chunks.txt`, `_filter_complex.txt`, `censor.json`, `dub_fit.wav`, `dub_tts.wav`, `hardsub_band.json`, `hardsub_track.json`, `loudness.json`, `meta.json`, `mixed_audio.json`, `mixed_audio.partial.wav`, `mixed_audio.wav`, `no_vocals.wav`, `ocr.json`, `output.mp4`, `script.display.json`, `script.json`, `sub.vi.burn.srt`, `sub.vi.srt`, `tts.json`, `tts_fit.json`, `vocals.wav`
 
-**Tín hiệu rủi ro (đếm tĩnh):** broad_except=33 · file_writes=14 · pools=1 · sleep=2 · subprocess=10 · swallow_except=15 · threads=1
+**Tín hiệu rủi ro (đếm tĩnh):** broad_except=34 · file_writes=15 · pools=1 · sleep=2 · subprocess=11 · swallow_except=15 · threads=1
 
 ### Lịch sử (từ docs/)
 
-- **Fix logs (15):**
+- **Fix logs (17):**
+  - [Port V2 → V4: preflight/chuẩn hoá video nguồn + extract_pcm bền + FireRed cắt ở khoảng lặng + câu ASR rác / pa](../../fixes/2026-11-13-port-preflight-slice-junk.md)
+  - [Preflight + chuẩn hoá video nguồn trước khi vào job (+ 2 lỗi review extract_pcm)](../../fixes/2026-11-12-video-preflight.md)
   - [Part mux hiện «Sẵn sàng» trong lúc dò hardsub OCR](../../fixes/2026-11-07-mux-heal-hardsub-ocr.md)
   - [Thêm bật/tắt che hardsub (blur)](../../fixes/2026-11-07-hardsub-blur-toggle.md)
   - [Hardsub chỗ có chỗ không — hở theo thời gian (OCR miss)](../../fixes/2026-11-04-hardsub-temporal-gaps.md)
@@ -139,7 +145,7 @@ flowchart LR
   - [Hardsub bar xanh + encode chậm](../../fixes/2026-09-24-hardsub-hwaccel-drawbox.md)
   - [Hardsub bar lộ xanh / lệch nửa khung](../../fixes/2026-09-24-hardsub-green-bar.md)
 - **Reviews:** [2026-11-02-v4-structure-and-v2-port](../../reviews/2026-11-02-v4-structure-and-v2-port.md), [2026-10-06-code-review](../../reviews/2026-10-06-code-review.md)
-- Nhắc trong CHANGELOG: **16** lần · DECISIONS: **0** lần
+- Nhắc trong CHANGELOG: **17** lần · DECISIONS: **0** lần
 
 <!-- AUTO:END -->
 

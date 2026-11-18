@@ -286,10 +286,10 @@ pat = re.compile(r"sk-[A-Za-z0-9_\-]{12,}")
 for f in ("run_v2.bat", "run_tele_cmd.bat", "config.json", "llm.py", ".claude/settings.local.json"):
     check(f"{f}: không còn key", not pat.search((ROOT / f).read_text(encoding="utf-8")))
 bat = (ROOT / "run_v2.bat").read_text(encoding="utf-8")
-check("run_v2.bat giữ AGENT_MODEL + fallback openclaw",
-      'set "AGENT_MODEL=' in bat and 'set "AGENT_FALLBACK_MODEL=openclaw"' in bat)
+check("run_v2.bat giữ AGENT_MODEL, không còn fallback openclaw (bỏ 2026-11-18)",
+      'set "AGENT_MODEL=' in bat and 'AGENT_FALLBACK_MODEL=openclaw' not in bat)
 tb = (ROOT / "run_tele_cmd.bat").read_text(encoding="utf-8")
-check("run_tele_cmd.bat giữ fallback openclaw", 'set "AGENT_FALLBACK_MODEL=openclaw"' in tb)
+check("run_tele_cmd.bat không còn fallback openclaw (bỏ 2026-11-18)", 'AGENT_FALLBACK_MODEL=openclaw' not in tb)
 sys.path.insert(0, r"D:\PinelineV2_tmp")
 from redact import redact  # noqa: E402
 
