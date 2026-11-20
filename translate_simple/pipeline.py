@@ -388,6 +388,26 @@ def run(work_dir: str | Path, target: str = "Tiếng Việt", *, force: bool = F
                 store.note("zh_ocr_b", None, f"lỗi: {str(e_ob)[:200]}")
         if flags and not cloud_dead:
             flags, rlog = repair.run(store, pv, flags, model=model, stop_check=stop_check, progress=prog)
+            # 2026-11-20: backup thật cho cờ cứng (cjk/empty) — DeepSeek hay để sót 1 chữ Hán (投影/C位)
+            # rồi cổng park; review-backup cũ chỉ đụng câu chưa rv, không đụng câu đã rv còn CJK.
+            if flags and bmodel and bmodel != model:
+                hard = {i: fl for i, fl in flags.items()
+                        if any((f.get("code") or "") in ("cjk", "empty") for f in fl)}
+                if hard:
+                    print(f"[simple] {len(hard)} câu cjk/empty sau vá {model} → dự phòng {bmodel}",
+                          flush=True)
+                    soft = {i: fl for i, fl in flags.items() if i not in hard}
+                    hard_left, blog = repair.run(
+                        store, pv, hard, model=bmodel, stop_check=stop_check, progress=prog, rounds=1,
+                    )
+                    for e in blog:
+                        e["backup"] = bmodel
+                    rlog.extend(blog)
+                    flags = {**soft, **hard_left}
+                    rstats["repair_backup"] = {
+                        "model": bmodel, "n": len(hard), "left": len(hard_left),
+                        "fixed": len(hard) - len(hard_left),
+                    }
         store.save()
         # 5b) fix 2026-11-13: còn câu chưa soát → 1 lượt review CHỈ các câu đó (lô nhỏ); rồi ≤ ngưỡng → nhận nháp
         miss_info = None
